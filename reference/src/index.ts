@@ -42,6 +42,8 @@ export type { CreateContextEnvelopeOptions, SealedContextEnvelope } from "./cont
 export { generateAgentCard, matchesQuery, canHandleEffortTier, checkBidEligibility, suggestPromotion, calculateCreditCost, EFFORT_MULTIPLIERS, EFFORT_VERIFICATION } from "./discovery/agent-card.js";
 export type { AgentCardOptions, CapabilityQuery, BidEligibilityOptions, BidEligibilityResult, CreditCostOptions } from "./discovery/agent-card.js";
 export { AgentRegistry, RegistryServer } from "./discovery/registry.js";
+export { HeartbeatTracker, isWithinWindow, getScheduledCapacity, hasRemainingQuota } from "./discovery/heartbeat.js";
+export type { HeartbeatState, HeartbeatTrackerOptions, HeartbeatCallback } from "./discovery/heartbeat.js";
 
 // Reputation
 export { ReputationEngine } from "./reputation/profile.js";
@@ -68,3 +70,7 @@ export { OptimisticVerifier, MockStakingAdapter } from "./verification/economic.
 export type { StakingAdapter, PendingAcceptance } from "./verification/economic.js";
 export { ConsensusVerifier } from "./verification/consensus.js";
 export type { ValidatorSelectionConfig, ValidatorAgent } from "./verification/consensus.js";
+
+// Metering
+export { MeteringTracker, validateMeteringReport, QuotaConsumptionTracker } from "./metering/tracker.js";
+export type { UsageCounters, MeteringValidationResult, MeteringValidationOptions, QuotaCheckResult } from "./metering/tracker.js";
