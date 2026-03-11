@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { DID, ISO8601, ULID, Duration, Price, Signature, EffortTier } from "./primitives.js";
+import { CapacitySource } from "./exchange.js";
 
 /** Context request — what the worker needs from the requester */
 export const ContextRequest = z.object({
@@ -68,6 +69,7 @@ export const Offer = z.object({
   // Exchange layer
   proposedEffortTier: EffortTier.optional(),
   proposedCreditPrice: z.number().nonnegative().optional(),
+  capacitySource: CapacitySource.optional(),
 
   signature: Signature,
 });

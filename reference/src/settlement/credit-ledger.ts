@@ -33,7 +33,7 @@ export interface TransactionOptions {
 export class CreditLedger {
   private balances = new Map<
     string,
-    { available: number; escrowed: number; earned: number; spent: number; purchased: number }
+    { available: number; escrowed: number; earned: number; spent: number; bootstrapped: number; donated: number; consumed: number }
   >();
   private transactions: CreditTransaction[] = [];
 
@@ -41,7 +41,7 @@ export class CreditLedger {
   private getOrCreate(agentId: string) {
     let bal = this.balances.get(agentId);
     if (!bal) {
-      bal = { available: 0, escrowed: 0, earned: 0, spent: 0, purchased: 0 };
+      bal = { available: 0, escrowed: 0, earned: 0, spent: 0, bootstrapped: 0, donated: 0, consumed: 0 };
       this.balances.set(agentId, bal);
     }
     return bal;
@@ -68,15 +68,34 @@ export class CreditLedger {
   }
 
   /**
-   * Add purchased credits to an agent's balance.
-   * Represents credits bought with real money.
+   * Add bootstrap credits to an agent's balance.
+   * Used to seed initial balance (e.g. sign-up bonus, initial grant).
    */
-  purchase(agentId: string, amount: number, description?: string): CreditTransaction {
-    if (amount <= 0) throw new Error("Purchase amount must be positive");
+  bootstrap(agentId: string, amount: number, description?: string): CreditTransaction {
+    if (amount <= 0) throw new Error("Bootstrap amount must be positive");
     const bal = this.getOrCreate(agentId);
     bal.available += amount;
-    bal.purchased += amount;
-    return this.record(agentId, { type: "purchase", amount, description });
+    bal.bootstrapped += amount;
+    return this.record(agentId, { type: "bootstrap", amount, description });
+  }
+
+  /**
+   * @deprecated Use bootstrap() instead
+   */
+  purchase(agentId: string, amount: number, description?: string): CreditTransaction {
+    return this.bootstrap(agentId, amount, description);
+  }
+
+  /**
+   * Record a capacity donation — agent shares unused subscription capacity.
+   * Credits the donor with the specified amount.
+   */
+  donate(agentId: string, amount: number, description?: string): CreditTransaction {
+    if (amount <= 0) throw new Error("Donation amount must be positive");
+    const bal = this.getOrCreate(agentId);
+    bal.available += amount;
+    bal.donated += amount;
+    return this.record(agentId, { type: "donate", amount, description });
   }
 
   /**
@@ -210,7 +229,9 @@ export class CreditLedger {
       escrowed: bal.escrowed,
       earned: bal.earned,
       spent: bal.spent,
-      purchased: bal.purchased,
+      bootstrapped: bal.bootstrapped,
+      donated: bal.donated,
+      consumed: bal.consumed,
       lastUpdated: new Date().toISOString(),
     };
   }

@@ -24,6 +24,8 @@ export interface CodingWorkerConfig {
   endpoint: string;
   registryUrl: string;
   solver: TaskSolver;
+  subscriptionTier?: string;
+  capacitySharePercent?: number;
 }
 
 export class CodingWorker {
@@ -149,17 +151,30 @@ export class CodingWorker {
     });
 
     await this.server.listen(port, hostname);
-    console.log(`Worker listening on ${endpoint} (solver: ${this.config.solver.name})`);
+    const tierLabel = this.config.subscriptionTier ?? "local";
+    const shareLabel = this.config.capacitySharePercent ?? 50;
+    console.log(`Worker listening on ${endpoint}`);
+    console.log(`  Sharing capacity from your ${this.config.solver.name} subscription (${tierLabel} tier, ${shareLabel}% shared)`);
 
     // Register with registry
     await this.register();
   }
 
   private async register(): Promise<void> {
+    // Determine capacity source from solver config
+    const provider = this.config.solver.name === "claude-solver"
+      ? "anthropic" as const
+      : this.config.solver.name === "openai-solver"
+        ? "openai" as const
+        : "local" as const;
+
+    const tier = (this.config.subscriptionTier ?? "local-gpu") as any;
+    const sharePercent = (this.config.capacitySharePercent ?? 50) / 100;
+
     const card = generateAgentCard({
       identity: this.identity,
       name: "coding-worker",
-      description: `Coding worker using ${this.config.solver.name}`,
+      description: `Coding worker sharing ${this.config.solver.name} capacity`,
       capabilities: [{
         domain: "coding",
         subDomain: "general",
@@ -168,6 +183,13 @@ export class CodingWorker {
       }],
       trustTier: "same-owner",
       endpoint: this.config.endpoint,
+      capacitySource: {
+        provider,
+        tier,
+        capacityType: provider === "local" ? "unlimited-local" : "tokens",
+        sharedCapacity: sharePercent * 1000,
+        modelAccess: provider === "anthropic" ? ["claude-sonnet-4"] : undefined,
+      },
     });
 
     const res = await fetch(`${this.config.registryUrl}/agents`, {
@@ -181,7 +203,7 @@ export class CodingWorker {
       throw new Error(`Failed to register worker: ${res.status} ${body}`);
     }
 
-    console.log(`Worker registered with registry at ${this.config.registryUrl}`);
+    console.log(`Worker registered — sharing capacity via ${this.config.registryUrl}`);
   }
 
   async stop(): Promise<void> {

@@ -75,28 +75,28 @@ describe("CreditLedger", () => {
     expect(bal.escrowed).toBe(0);
     expect(bal.earned).toBe(0);
     expect(bal.spent).toBe(0);
-    expect(bal.purchased).toBe(0);
+    expect(bal.bootstrapped).toBe(0);
   });
 
-  it("purchase adds to available and purchased", () => {
-    const tx = ledger.purchase("did:key:z6MkAgent", 1000, "Initial purchase");
-    expect(tx.type).toBe("purchase");
+  it("bootstrap adds to available and bootstrapped", () => {
+    const tx = ledger.bootstrap("did:key:z6MkAgent", 1000, "Initial bootstrap");
+    expect(tx.type).toBe("bootstrap");
     expect(tx.amount).toBe(1000);
 
     const bal = ledger.getBalance("did:key:z6MkAgent");
     expect(bal.available).toBe(1000);
-    expect(bal.purchased).toBe(1000);
+    expect(bal.bootstrapped).toBe(1000);
   });
 
   it("grant adds to available", () => {
     ledger.grant("did:key:z6MkAgent", 500, "Sign-up bonus");
     const bal = ledger.getBalance("did:key:z6MkAgent");
     expect(bal.available).toBe(500);
-    expect(bal.purchased).toBe(0);
+    expect(bal.bootstrapped).toBe(0);
   });
 
   it("escrow moves credits from available to escrowed", () => {
-    ledger.purchase("did:key:z6MkAgent", 1000);
+    ledger.bootstrap("did:key:z6MkAgent", 1000);
     ledger.escrow("did:key:z6MkAgent", 400);
 
     const bal = ledger.getBalance("did:key:z6MkAgent");
@@ -105,7 +105,7 @@ describe("CreditLedger", () => {
   });
 
   it("escrow rejects insufficient balance", () => {
-    ledger.purchase("did:key:z6MkAgent", 100);
+    ledger.bootstrap("did:key:z6MkAgent", 100);
     expect(() => ledger.escrow("did:key:z6MkAgent", 200)).toThrow("Insufficient credits");
   });
 
@@ -113,7 +113,7 @@ describe("CreditLedger", () => {
     const requester = "did:key:z6MkRequester";
     const worker = "did:key:z6MkWorker";
 
-    ledger.purchase(requester, 1000);
+    ledger.bootstrap(requester, 1000);
     ledger.escrow(requester, 500);
 
     const { requesterTx, workerTx } = ledger.release(requester, worker, 500);
@@ -132,7 +132,7 @@ describe("CreditLedger", () => {
   });
 
   it("release rejects insufficient escrowed balance", () => {
-    ledger.purchase("did:key:z6MkReq", 1000);
+    ledger.bootstrap("did:key:z6MkReq", 1000);
     ledger.escrow("did:key:z6MkReq", 200);
     expect(() => ledger.release("did:key:z6MkReq", "did:key:z6MkW", 300)).toThrow(
       "Insufficient escrowed",
@@ -141,7 +141,7 @@ describe("CreditLedger", () => {
 
   it("refund moves credits from escrowed back to available", () => {
     const agent = "did:key:z6MkAgent";
-    ledger.purchase(agent, 1000);
+    ledger.bootstrap(agent, 1000);
     ledger.escrow(agent, 400);
     ledger.refund(agent, 400);
 
@@ -152,7 +152,7 @@ describe("CreditLedger", () => {
 
   it("slash deducts from available", () => {
     const agent = "did:key:z6MkBad";
-    ledger.purchase(agent, 1000);
+    ledger.bootstrap(agent, 1000);
     ledger.slash(agent, 300, "Failed spot check");
 
     const bal = ledger.getBalance(agent);
@@ -161,7 +161,7 @@ describe("CreditLedger", () => {
 
   it("slash does not go below zero", () => {
     const agent = "did:key:z6MkBad";
-    ledger.purchase(agent, 100);
+    ledger.bootstrap(agent, 100);
     ledger.slash(agent, 500, "Big penalty");
 
     const bal = ledger.getBalance(agent);
@@ -170,28 +170,30 @@ describe("CreditLedger", () => {
 
   it("tracks full transaction history", () => {
     const agent = "did:key:z6MkAgent";
-    ledger.purchase(agent, 1000);
+    ledger.bootstrap(agent, 1000);
     ledger.grant(agent, 200);
     ledger.escrow(agent, 500);
 
     const txs = ledger.getTransactions(agent);
     expect(txs).toHaveLength(3);
-    expect(txs.map((t) => t.type)).toEqual(["purchase", "grant", "escrow"]);
+    expect(txs.map((t) => t.type)).toEqual(["bootstrap", "grant", "escrow"]);
   });
 
   it("filters transactions by type", () => {
     const agent = "did:key:z6MkAgent";
-    ledger.purchase(agent, 500);
+    ledger.bootstrap(agent, 500);
     ledger.grant(agent, 200);
-    ledger.purchase(agent, 300);
+    ledger.bootstrap(agent, 300);
 
-    const purchases = ledger.getTransactions(agent, "purchase");
-    expect(purchases).toHaveLength(2);
+    const bootstraps = ledger.getTransactions(agent, "bootstrap");
+    expect(bootstraps).toHaveLength(2);
   });
 
   it("rejects non-positive amounts", () => {
-    expect(() => ledger.purchase("did:key:z6Mk", 0)).toThrow("must be positive");
-    expect(() => ledger.purchase("did:key:z6Mk", -1)).toThrow("must be positive");
+    expect(() => ledger.bootstrap("did:key:z6Mk", 0)).toThrow("must be positive");
+    expect(() => ledger.bootstrap("did:key:z6Mk", -1)).toThrow("must be positive");
+    // The deprecated purchase() alias also validates
+
     expect(() => ledger.grant("did:key:z6Mk", 0)).toThrow("must be positive");
     expect(() => ledger.escrow("did:key:z6Mk", 0)).toThrow("must be positive");
     expect(() => ledger.slash("did:key:z6Mk", 0)).toThrow("must be positive");
@@ -212,7 +214,7 @@ describe("CreditSettlementAdapter", () => {
   });
 
   it("creates and releases escrow with credits", async () => {
-    adapter.ledger.purchase(requester.did, 1000);
+    adapter.ledger.bootstrap(requester.did, 1000);
 
     const contract = makeContract(requester, worker, 500);
     const escrow = await adapter.createEscrow(contract);
@@ -249,7 +251,7 @@ describe("CreditSettlementAdapter", () => {
   });
 
   it("refunds escrow back to requester", async () => {
-    adapter.ledger.purchase(requester.did, 1000);
+    adapter.ledger.bootstrap(requester.did, 1000);
 
     const contract = makeContract(requester, worker, 300);
     const escrow = await adapter.createEscrow(contract);
@@ -270,7 +272,7 @@ describe("CreditSettlementAdapter", () => {
   });
 
   it("handles partial release (dispute compromise)", async () => {
-    adapter.ledger.purchase(requester.did, 1000);
+    adapter.ledger.bootstrap(requester.did, 1000);
 
     const contract = makeContract(requester, worker, 600);
     const escrow = await adapter.createEscrow(contract);
@@ -299,21 +301,21 @@ describe("CreditSettlementAdapter", () => {
   });
 
   it("rejects insufficient credits", async () => {
-    adapter.ledger.purchase(requester.did, 100);
+    adapter.ledger.bootstrap(requester.did, 100);
 
     const contract = makeContract(requester, worker, 500);
     await expect(adapter.createEscrow(contract)).rejects.toThrow("Insufficient credits");
   });
 
   it("rejects non-credits currency", async () => {
-    adapter.ledger.purchase(requester.did, 1000);
+    adapter.ledger.bootstrap(requester.did, 1000);
 
     const contract = makeContract(requester, worker, 100, "USD");
     await expect(adapter.createEscrow(contract)).rejects.toThrow('only supports currency "credits"');
   });
 
   it("rejects double-release", async () => {
-    adapter.ledger.purchase(requester.did, 1000);
+    adapter.ledger.bootstrap(requester.did, 1000);
 
     const contract = makeContract(requester, worker, 200);
     const escrow = await adapter.createEscrow(contract);
@@ -324,7 +326,7 @@ describe("CreditSettlementAdapter", () => {
   });
 
   it("rejects partial release exceeding escrow", async () => {
-    adapter.ledger.purchase(requester.did, 1000);
+    adapter.ledger.bootstrap(requester.did, 1000);
 
     const contract = makeContract(requester, worker, 300);
     const escrow = await adapter.createEscrow(contract);
@@ -340,7 +342,7 @@ describe("CreditSettlementAdapter", () => {
   });
 
   it("tracks settlement proofs", async () => {
-    adapter.ledger.purchase(requester.did, 2000);
+    adapter.ledger.bootstrap(requester.did, 2000);
 
     const contract = makeContract(requester, worker, 500);
     const escrow = await adapter.createEscrow(contract);
@@ -358,7 +360,7 @@ describe("CreditSettlementAdapter", () => {
     const agentB = generateAgentIdentity();
     const agentC = generateAgentIdentity();
 
-    adapter.ledger.purchase(agentA.did, 1000);
+    adapter.ledger.bootstrap(agentA.did, 1000);
 
     // A → B: task worth 500 credits
     const contract1 = makeContract(agentA, agentB, 500);
@@ -397,7 +399,7 @@ describe("CreditSettlementAdapter", () => {
     const adapter1 = new CreditSettlementAdapter(ledger);
     const adapter2 = new CreditSettlementAdapter(ledger);
 
-    ledger.purchase(requester.did, 1000);
+    ledger.bootstrap(requester.did, 1000);
 
     // Use adapter1 to escrow
     const contract = makeContract(requester, worker, 200);

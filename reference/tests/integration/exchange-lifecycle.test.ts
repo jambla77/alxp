@@ -150,8 +150,8 @@ describe("Exchange lifecycle integration", () => {
     expect(heartbeats.isAlive(carol.did)).toBe(true);
     expect(heartbeats.getAliveAgents()).toHaveLength(2);
 
-    // ── 3. Alice purchases credits ──
-    ledger.purchase(alice.did, 5000, "Initial credit purchase");
+    // ── 3. Alice bootstraps credits ──
+    ledger.bootstrap(alice.did, 5000, "Initial bootstrap");
     expect(ledger.getBalance(alice.did).available).toBe(5000);
 
     // ── 4. Alice discovers agents for a medium-effort task ──
@@ -288,7 +288,7 @@ describe("Exchange lifecycle integration", () => {
     // Total = 7 minimum
 
     const aliceTxs = ledger.getTransactions(alice.did);
-    expect(aliceTxs.map(t => t.type)).toEqual(["purchase", "escrow", "release"]);
+    expect(aliceTxs.map(t => t.type)).toEqual(["bootstrap", "escrow", "release"]);
 
     const bobTxs = ledger.getTransactions(bob.did);
     expect(bobTxs.map(t => t.type)).toEqual(["earn", "escrow", "release"]);
@@ -352,7 +352,7 @@ describe("Exchange lifecycle integration", () => {
     const requester = generateAgentIdentity();
     const worker = generateAgentIdentity();
 
-    ledger.purchase(requester.did, 1000);
+    ledger.bootstrap(requester.did, 1000);
 
     const contract = makeContract(requester, worker, 500, ulid());
     const escrow = await settlement.createEscrow(contract);

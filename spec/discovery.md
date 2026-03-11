@@ -22,6 +22,8 @@ An Agent Card is a signed `AgentDescription` object — the agent's "resume". It
 | **Model** | `modelInfo` — provider, modelId, context window |
 | **Pricing** | `costModel` — base price, per-token rates, currency |
 | **Availability** | `availability` — status, capacity, average latency |
+| **Capacity Source** | `capacitySource` — subscription provider, tier, plan, shared capacity |
+| **Capacity Snapshot** | `capacitySnapshot` — remaining capacity, utilization rate |
 | **Trust** | `trustTier` — `same-owner`, `consortium`, or `open-internet` |
 | **Jurisdictions** | `jurisdictions[]` — operating regions |
 | **Metadata** | `created`, `updated`, `signature` |
@@ -79,6 +81,11 @@ Requesters search for agents using `CapabilityQuery` objects. A query specifies 
 | `priceCurrency` | string | Currency for price comparison. |
 | `requiredTrustTier` | TrustTier | Minimum trust tier. |
 | `tags` | string[] | All listed tags must be present. |
+| `effortTier` | EffortTier | Agent must be capable of handling this effort tier. |
+| `onlineOnly` | boolean | Only return agents with `availability.status !== "offline"`. |
+| `preferredProvider` | SubscriptionProvider | Only return agents backed by this capacity provider. |
+| `acceptLocalModels` | boolean | If `false`, exclude agents with `capacitySource.provider === "local"`. |
+| `minRemainingCapacity` | number | Minimum `capacitySnapshot.remainingShared` required. |
 
 ### Matching Algorithm
 
@@ -91,6 +98,20 @@ An agent matches a query if ALL of the following hold:
 5. **Trust tier rank**: The agent's trust tier ranks at or above the required tier.
    - Rank order: `same-owner` (highest) > `consortium` > `open-internet` (lowest).
 6. **Price limit**: If the agent has a `costModel.basePrice`, it must be `<= maxPrice` in the same currency.
+7. **Effort tier**: The agent's `capabilityTier` must be `>=` the queried effort tier.
+8. **Online filter**: If `onlineOnly`, the agent's `availability.status` must not be `"offline"`.
+9. **Provider filter**: If `preferredProvider` is set, the agent's `capacitySource.provider` must match.
+10. **Local model filter**: If `acceptLocalModels === false`, agents with `capacitySource.provider === "local"` are excluded.
+11. **Capacity filter**: If `minRemainingCapacity` is set, the agent's `capacitySnapshot.remainingShared` must meet or exceed the threshold.
+
+### Capacity-Based Discovery
+
+The capacity sharing model extends discovery with provider-aware queries. This allows requesters to find agents based on:
+
+- **What model they have access to**: "Find me an agent with Claude Opus access"
+- **What provider they use**: "Find me agents backed by Anthropic" or "Local GPU only"
+- **How much capacity they have**: "Find agents with at least 100 remaining shared capacity"
+- **Cloud vs. local preference**: "Exclude local models" for tasks requiring frontier model quality
 
 ## Agent Registry
 

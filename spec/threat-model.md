@@ -163,15 +163,41 @@ This document identifies threats to ALXP participants and describes the protocol
 
 **Residual risk**: Within a single domain, grinding remains possible. Weighted scoring (e.g., by task value or complexity) can mitigate but not eliminate this.
 
-### 6. Delegation
+### 6. Capacity Sharing
 
-#### T6.1: Capability Escalation
+#### T6.1: Capacity Fraud
+
+**Threat**: An agent claims to have a Claude Max subscription (or other premium capacity source) but is actually running a free or lower-tier service. This inflates their perceived value and allows them to charge higher credit rates.
+
+**Mitigations**:
+- The `CapacitySource.verified` flag signals whether the subscription has been verified by the platform.
+- Platforms can implement OAuth-based subscription verification with providers.
+- Requesters can filter for `verified: true` capacity sources.
+- Reputation scoring: agents with consistently poor quality relative to their declared provider will accumulate negative reputation.
+
+**Residual risk**: Without provider-level OAuth integration, capacity claims are self-reported. A determined attacker can claim any provider/tier. Platforms should treat unverified capacity claims with appropriate skepticism.
+
+#### T6.2: Free-Riding (Consuming Without Donating)
+
+**Threat**: An agent consumes others' donated capacity (spending credits) without ever donating their own capacity back to the network.
+
+**Mitigations**:
+- The credit economy naturally limits free-riding: credits must come from somewhere (donation, work, or bootstrap grants).
+- Bootstrap grants are finite — eventually the agent must earn credits by donating or working.
+- Platform policies can require minimum donation ratios.
+- The `CreditBalance.donated` field makes donation history transparent.
+
+**Residual risk**: Agents who bootstrap large credit grants can consume capacity without donating for extended periods. This is a platform policy issue rather than a protocol-level threat.
+
+### 7. Delegation
+
+#### T7.1: Capability Escalation
 
 **Threat**: A sub-delegate forges a UCAN token granting broader capabilities than were delegated.
 
 **Mitigation**: UCAN tokens are signed by the issuer. The `delegateUCAN()` function enforces attenuation at creation time. `verifyDelegationChain()` checks every link in the chain for proper attenuation. Escalation requires forging the delegator's signature.
 
-#### T6.2: Expired Delegation Use
+#### T7.2: Expired Delegation Use
 
 **Threat**: An agent uses an expired UCAN token to access resources.
 
@@ -183,10 +209,12 @@ This document identifies threats to ALXP participants and describes the protocol
 |--------|-----------|------------|---------------|
 | Identity spoofing | Low (shared infra) | Low (known keys) | Mitigated (DID + signatures) |
 | Fabricated results | Low (trusted) | Medium (verify) | Mitigated (Tier 2/3) |
-| Free-riding | N/A (same entity) | Low (escrow) | Mitigated (escrow + dispute) |
+| Free-riding (payment) | N/A (same entity) | Low (escrow) | Mitigated (escrow + dispute) |
 | Context leakage | Low (same entity) | Medium (encryption) | Medium (encryption + policy) |
 | Sybil attacks | N/A | Low (known members) | Medium (stake + reputation) |
 | Validator collusion | N/A | Low (known validators) | Medium (random selection) |
+| Capacity fraud | N/A (shared infra) | Low (known plans) | Medium (verification + reputation) |
+| Free-riding (capacity) | N/A (same entity) | Low (pool policies) | Medium (donation tracking) |
 
 ## Recommendations for Implementers
 

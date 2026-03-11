@@ -19,12 +19,16 @@ export interface DispatchConfig {
   localIp: string;
   localOnly: boolean;
 
-  // Solver
+  // Solver / capacity source
   solver: "echo" | "openai" | "claude";
   llmEndpoint: string;
   llmModel: string;
   llmApiKey: string | null;
   anthropicModel: string;
+
+  // Capacity sharing
+  subscriptionTier: string;
+  capacitySharePercent: number;
 
   // Timeouts
   taskTimeoutMs: number;
@@ -94,6 +98,10 @@ export function parseConfig(argv: string[] = process.argv.slice(2)): DispatchCon
     llmModel: args.get("llm-model") ?? "codellama",
     llmApiKey: args.get("llm-api-key") ?? process.env.OPENAI_API_KEY ?? null,
     anthropicModel: args.get("anthropic-model") ?? "claude-sonnet-4-20250514",
+
+    // Capacity sharing — what percentage of your subscription to share
+    subscriptionTier: args.get("subscription-tier") ?? (solver === "claude" ? "pro" : solver === "openai" ? "pro" : "local-gpu"),
+    capacitySharePercent: parseInt(args.get("capacity-share") ?? "50", 10),
 
     taskTimeoutMs: parseInt(args.get("task-timeout") ?? "120000", 10),
   };

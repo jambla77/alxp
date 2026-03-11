@@ -9,7 +9,7 @@ import { WorkReceipt } from "./receipt.js";
 import { DisputeRecord } from "./dispute.js";
 import { Challenge } from "./staking.js";
 import { ValidatorAssessment } from "./consensus.js";
-import { MeteringReport, QuotaRemaining } from "./exchange.js";
+import { MeteringReport, QuotaRemaining, CapacitySnapshot } from "./exchange.js";
 
 /** Settlement proof */
 export const SettlementProof = z.object({
@@ -88,6 +88,7 @@ export const Heartbeat = z.object({
   capacity: z.number().min(0).max(1),
   currentTasks: z.number().int().nonnegative(),
   quotaRemaining: QuotaRemaining.optional(),
+  capacitySnapshot: CapacitySnapshot.optional(),
 });
 export type Heartbeat = z.infer<typeof Heartbeat>;
 

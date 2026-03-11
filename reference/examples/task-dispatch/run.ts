@@ -51,14 +51,14 @@ async function main() {
     process.exit(1);
   }
 
-  console.log("╔══════════════════════════════════════════╗");
-  console.log("║     ALXP Task Dispatch — Local Mode      ║");
-  console.log("╚══════════════════════════════════════════╝");
+  console.log("╔══════════════════════════════════════════════╗");
+  console.log("║  ALXP Capacity Sharing — Task Dispatch       ║");
+  console.log("╚══════════════════════════════════════════════╝");
   console.log();
-  console.log(`  Project:  ${config.projectRoot}`);
-  console.log(`  Solver:   ${config.solver}`);
-  console.log(`  Tasks:    ${tasks.length}`);
-  console.log(`  Registry: ${config.registryUrl}`);
+  console.log(`  Project:   ${config.projectRoot}`);
+  console.log(`  Capacity:  ${config.solver} (${config.subscriptionTier} tier, sharing ${config.capacitySharePercent}%)`);
+  console.log(`  Tasks:     ${tasks.length}`);
+  console.log(`  Registry:  ${config.registryUrl}`);
   console.log();
 
   // 1. Start registry
@@ -90,6 +90,8 @@ async function main() {
     endpoint: workerEndpoint,
     registryUrl: config.registryUrl,
     solver,
+    subscriptionTier: config.subscriptionTier,
+    capacitySharePercent: config.capacitySharePercent,
   });
   await worker.start();
 

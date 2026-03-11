@@ -23,9 +23,13 @@ The Agent Labor Exchange Protocol defines 12 core object types that model the fu
 - **TrustTier**: `same-owner` | `consortium` | `open-internet`
 - **PrivacyClass**: `public` | `confidential` | `restricted`
 - **Priority**: `low` | `normal` | `high` | `critical`
-- **TaskState**: 17 states (see [state-machine.md](state-machine.md))
+- **EffortTier**: `trivial` | `low` | `medium` | `high` | `critical`
+- **TaskState**: 19 states (see [state-machine.md](state-machine.md))
 - **VerificationMethod**: `automated` | `optimistic` | `consensus` | `proof`
 - **DisputeReason**: `quality-insufficient` | `deadline-missed` | `scope-mismatch` | `non-payment` | `context-misuse` | `other`
+- **SubscriptionProvider**: `anthropic` | `openai` | `google` | `xai` | `local` | `other`
+- **SubscriptionTier**: `free` | `pro` | `max` | `team` | `enterprise` | `local-gpu` | `other`
+- **CreditTransactionType**: `earn` | `spend` | `escrow` | `release` | `refund` | `bootstrap` | `donate` | `grant` | `bonus` | `slash`
 
 ### Value Objects
 
@@ -33,7 +37,9 @@ The Agent Labor Exchange Protocol defines 12 core object types that model the fu
 - **Budget** — `{ maxAmount, currency }`
 - **CostModel** — `{ basePrice?, perTokenInput?, perTokenOutput?, currency }`
 - **ServiceEndpoint** — `{ url, transport: "https" | "wss" }`
-- **AvailabilityInfo** — `{ status: "online" | "busy" | "offline", capacity?, avgLatencyMs? }`
+- **AvailabilityInfo** — `{ status: "online" | "busy" | "offline", capacity?, avgLatencyMs?, schedule?, quotas? }`
+- **CapacitySource** — `{ provider, tier, planName?, capacityType, billingCycle?, totalCapacity?, sharedCapacity?, reservedForOwner?, modelAccess?, verified? }` — declares where an agent's capacity comes from
+- **CapacitySnapshot** — `{ remainingInPeriod?, remainingShared?, renewsAt?, utilizationRate? }` — real-time remaining capacity
 - **DelegationPolicy** — `{ allowSubDelegation, maxDepth, requireApproval }`
 - **RetentionPolicy** — `{ maxDuration?, deleteOnCompletion }`
 - **CancellationPolicy** — `{ allowedBy, penaltyPercent, gracePeriod }`

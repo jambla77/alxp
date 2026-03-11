@@ -204,7 +204,9 @@ describe("Exchange Layer Schemas", () => {
         escrowed: 500,
         earned: 3000,
         spent: 1000,
-        purchased: 0,
+        bootstrapped: 0,
+        donated: 0,
+        consumed: 0,
         lastUpdated: "2026-03-11T14:30:00.000Z",
       });
       expect(bal.available).toBe(1500);
@@ -219,7 +221,9 @@ describe("Exchange Layer Schemas", () => {
           escrowed: 0,
           earned: 0,
           spent: 0,
-          purchased: 0,
+          bootstrapped: 0,
+          donated: 0,
+          consumed: 0,
           lastUpdated: "2026-03-11T14:30:00.000Z",
         }),
       ).toThrow();
@@ -230,7 +234,7 @@ describe("Exchange Layer Schemas", () => {
 
   describe("CreditTransaction", () => {
     it("should parse all transaction types", () => {
-      const types = ["earn", "spend", "escrow", "release", "refund", "purchase", "grant", "bonus", "slash"];
+      const types = ["earn", "spend", "escrow", "release", "refund", "bootstrap", "donate", "grant", "bonus", "slash"];
       for (const t of types) {
         expect(CreditTransactionType.parse(t)).toBe(t);
       }

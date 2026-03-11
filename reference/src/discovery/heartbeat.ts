@@ -11,7 +11,7 @@
 
 import type { DID, AvailabilityWindow } from "../types/index.js";
 import type { Heartbeat } from "../types/message.js";
-import type { QuotaRemaining } from "../types/exchange.js";
+import type { QuotaRemaining, CapacitySnapshot } from "../types/exchange.js";
 
 /** Heartbeat state for a single agent */
 export interface HeartbeatState {
@@ -20,6 +20,7 @@ export interface HeartbeatState {
   capacity: number;
   currentTasks: number;
   quotaRemaining?: QuotaRemaining;
+  capacitySnapshot?: CapacitySnapshot;
   lastHeartbeat: Date;
   missedHeartbeats: number;
 }
@@ -67,6 +68,7 @@ export class HeartbeatTracker {
       capacity: heartbeat.capacity,
       currentTasks: heartbeat.currentTasks,
       quotaRemaining: heartbeat.quotaRemaining,
+      capacitySnapshot: heartbeat.capacitySnapshot,
       lastHeartbeat: new Date(),
       missedHeartbeats: 0,
     };
@@ -218,6 +220,16 @@ export function getScheduledCapacity(
 }
 
 // ── Quota Checking ──
+
+/**
+ * Check if an agent has remaining shared capacity based on their heartbeat state.
+ * Returns true if the agent's capacity snapshot shows remaining shared capacity.
+ */
+export function hasRemainingCapacity(state: HeartbeatState): boolean {
+  if (!state.capacitySnapshot) return true; // No snapshot = assume available
+  if (state.capacitySnapshot.remainingShared !== undefined && state.capacitySnapshot.remainingShared <= 0) return false;
+  return true;
+}
 
 /**
  * Check if an agent has remaining quota based on their heartbeat state.

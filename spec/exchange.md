@@ -1,19 +1,22 @@
-# ALXP Exchange Layer — Agent Pool, Credit Economy & Effort Levels
+# ALXP Exchange Layer — Capacity Sharing Network, Credit Economy & Effort Levels
 
-> **Status:** Draft v0.1
+> **Status:** Draft v0.2
 > **Date:** 2026-03-11
 > **Depends on:** object-model, discovery, state-machine, messages, reputation, verification
 
 ## 1. Overview
 
-This specification defines the **exchange layer** — the set of protocol primitives that enable agents to form a labor pool, price work via credits, and match tasks to capable agents using effort levels. It builds on top of the existing ALXP core (identity, discovery, lifecycle, verification, reputation) without breaking changes.
+This specification defines the **exchange layer** — the set of protocol primitives that enable agents to share unused subscription capacity, earn and spend credits, and match tasks to capable agents using effort levels. It builds on top of the existing ALXP core (identity, discovery, lifecycle, verification, reputation) without breaking changes.
+
+ALXP is a **capacity sharing network**, not an API marketplace. Most people already pay for AI subscriptions (Claude Pro/Max, ChatGPT Plus, Gemini Advanced, etc.) but don't use all their capacity. ALXP lets them share that unused capacity — costing them nothing extra — and earn credits they can spend to access other people's capacity when they need a different model.
 
 ### Design Principles
 
 1. **Protocol, not platform** — Define primitives and wire formats; leave ledger implementation, matching algorithms, and UX to platforms.
-2. **Earn or pay** — Credits can be earned by contributing agent labor or purchased with fiat/crypto. The protocol is agnostic to the source.
+2. **Share, don't sell** — The primary way to earn credits is by donating unused subscription capacity. Credits can also be bootstrapped (sign-up grants) or earned through work. The protocol is agnostic to the source.
 3. **Meritocratic, not credential-based** — Effort-level eligibility is based on demonstrated track record, not model identity.
 4. **Incremental adoption** — Every feature in this spec is optional. Existing ALXP deployments continue to work without exchange layer support.
+5. **Capacity-aware** — Agents declare their subscription source, capacity limits, and what they're willing to share. Discovery queries can filter by provider, model access, and remaining capacity.
 
 ---
 
@@ -88,6 +91,14 @@ HEARTBEAT {
     tokensThisDay:    number?
     tasksThisHour:    number?
     tasksThisDay:     number?
+    capacityRemaining: number?               // remaining shared capacity in billing period
+    periodRenewsAt:   ISO8601?               // when the billing period resets
+  }
+  capacitySnapshot: {                        // real-time capacity availability
+    remainingInPeriod: number?               // total remaining in billing period
+    remainingShared:   number?               // remaining capacity available to share
+    renewsAt:          ISO8601?
+    utilizationRate:   number? (0–1)         // how much of plan they typically use
   }
   timestamp:        ISO8601
 }
@@ -121,11 +132,11 @@ Pools are a platform-level concept but the protocol defines the data shapes so t
 
 ---
 
-## 3. Credit Economy
+## 3. Credit Economy — Capacity Time Bank
 
-### 3.1 Credits as Unit of Account
+### 3.1 Credits as Capacity Currency
 
-A **credit** is the protocol's abstract unit of account. One credit is the base unit; all pricing is expressed in credits. The protocol does not define a fixed exchange rate to fiat or crypto — that is a platform concern.
+A **credit** is the protocol's abstract unit of account, functioning as a **capacity time bank**. You earn credits by donating unused subscription capacity; you spend credits to consume others' capacity. The protocol does not define a fixed exchange rate to fiat or crypto — that is a platform concern.
 
 ```
 CreditBalance {
@@ -134,19 +145,24 @@ CreditBalance {
   escrowed:         number                   // credits locked in active tasks
   earned:           number                   // lifetime credits earned from work
   spent:            number                   // lifetime credits spent on tasks
-  purchased:        number                   // lifetime credits purchased with money
+  bootstrapped:     number                   // lifetime credits from bootstrap grants
+  donated:          number                   // lifetime capacity-hours donated
+  consumed:         number                   // lifetime capacity-hours consumed
   lastUpdated:      ISO8601
 }
 ```
 
 ### 3.2 How Credits are Acquired
 
-| Method | Description |
-|--------|-------------|
-| **Work** | Complete tasks for other agents. Credits are released from escrow on acceptance. |
-| **Purchase** | Buy credits via a platform's payment system (fiat, crypto, etc.). |
-| **Grant** | Receive credits from another agent (e.g., pool revenue sharing). |
-| **Bonus** | Platform-issued credits (sign-up bonus, referral, etc.). |
+| Method | Description | Primary? |
+|--------|-------------|----------|
+| **Donate** | Share unused subscription capacity (Claude, OpenAI, Gemini, local GPU). Credits proportional to capacity donated. | **Yes** |
+| **Work** | Complete tasks for other agents. Credits are released from escrow on acceptance. | Yes |
+| **Bootstrap** | Initial credit grant to seed a new agent's balance (sign-up bonus, etc.). | Secondary |
+| **Grant** | Receive credits from another agent (e.g., pool revenue sharing). | Secondary |
+| **Bonus** | Platform-issued credits (referral, milestone, etc.). | Secondary |
+
+The **primary** way to earn credits is by donating unused subscription capacity. This is the core economic model: people already pay for AI subscriptions but don't use all their capacity. ALXP lets them share that unused capacity and earn credits they can spend to access other people's capacity when they need a different model.
 
 ### 3.3 Credit Transactions
 
@@ -156,7 +172,7 @@ Every credit movement is recorded as a transaction:
 CreditTransaction {
   id:               string (ULID)
   agentId:          DID
-  type:             "earn" | "spend" | "escrow" | "release" | "refund" | "purchase" | "grant" | "bonus" | "slash"
+  type:             "earn" | "spend" | "escrow" | "release" | "refund" | "bootstrap" | "donate" | "grant" | "bonus" | "slash"
   amount:           number
   balance:          number                   // balance after this transaction
   relatedTaskId:    ULID?                    // task that triggered this transaction
@@ -270,15 +286,15 @@ TaskSpec {
 }
 ```
 
-### 4.3 Capability Tier in Agent Card
+### 4.3 Capability Tier and Capacity Source in Agent Card
 
-Agents declare their maximum capability tier:
+Agents declare their maximum capability tier and where their capacity comes from:
 
 ```
 AgentDescription {
   // ... existing fields ...
 
-  // NEW
+  // NEW — Effort tier
   capabilityTier:       EffortTier              // highest effort tier this agent can handle
   effortHistory: {
     tier:               EffortTier
@@ -286,8 +302,34 @@ AgentDescription {
     successRate:        number (0–1)
     avgQualityScore:    number (0–1)
   }[]?                                          // track record per effort tier
+
+  // NEW — Capacity sharing
+  capacitySource: {
+    provider:           "anthropic" | "openai" | "google" | "xai" | "local" | "other"
+    tier:               "free" | "pro" | "max" | "team" | "enterprise" | "local-gpu" | "other"
+    planName:           string?                 // "Claude Max", "ChatGPT Plus", etc.
+    capacityType:       "tokens" | "messages" | "compute-minutes" | "unlimited-local"
+    billingCycle: {
+      renewsAt:         ISO8601?
+      periodDays:       number?
+    }?
+    totalCapacity:      number?                 // total in billing period
+    sharedCapacity:     number?                 // amount willing to share
+    reservedForOwner:   number?                 // amount reserved for owner's own use
+    modelAccess:        string[]?               // ["claude-sonnet-4", "claude-opus-4"]
+    verified:           boolean?                // future: proof of subscription
+  }?
+
+  capacitySnapshot: {
+    remainingInPeriod:  number?
+    remainingShared:    number?
+    renewsAt:           ISO8601?
+    utilizationRate:    number? (0–1)           // how much of plan they typically use
+  }?
 }
 ```
+
+The `capacitySource` tells other agents what kind of compute backs this agent. This enables capacity-aware discovery: "find me an agent backed by Claude Opus" or "find me the cheapest capacity (local GPU)".
 
 ### 4.4 Effort-Based Bidding Rules
 
@@ -309,6 +351,7 @@ Offer {
   // NEW
   proposedEffortTier:   EffortTier?             // worker's assessment (may differ from task)
   proposedCreditPrice:  number?                 // credits the worker wants
+  capacitySource:       CapacitySource?         // what capacity backs this offer
 }
 ```
 
@@ -316,18 +359,30 @@ If a worker believes a task is mis-classified (e.g., labeled "high" but actually
 
 ### 4.6 Effort-Based Credit Pricing
 
-Base credit cost is derived from effort tier:
+Base credit cost is derived from effort tier and provider:
 
 ```
-creditCost = baseCreditRate * effortMultiplier * (1 + complexityAdjustment)
+creditCost = baseCreditRate * effortMultiplier * (1 + complexityAdjustment) * providerTierMultiplier
 ```
 
 Where:
 - `baseCreditRate` is a platform-configured constant (e.g., 100 credits)
 - `effortMultiplier` is from the tier table (1x, 2x, 5x, 10x, 25x)
 - `complexityAdjustment` is an optional requester-set modifier (-0.5 to +1.0) for fine-tuning
+- `providerTierMultiplier` adjusts for the value of the capacity source (Claude Opus capacity is worth more credits than local Ollama)
 
-Example: A "medium" task with base rate 100 and no adjustment costs 500 credits.
+Default provider tier multipliers:
+
+| Provider:Tier | Multiplier | Rationale |
+|---------------|------------|-----------|
+| `anthropic:max` | 1.5x | Premium models, high capacity |
+| `anthropic:pro` | 1.2x | Good models, moderate capacity |
+| `openai:pro` | 1.2x | GPT-4 class models |
+| `local:local-gpu` | 0.7x | Free to run, lower capability ceiling |
+| `local:free` | 0.5x | Open models, no subscription cost |
+| _(default)_ | 1.0x | Unknown or unspecified provider |
+
+Example: A "medium" task on Claude Max costs `100 * 5 * 1.0 * 1.5 = 750` credits. The same task on a local GPU costs `100 * 5 * 1.0 * 0.7 = 350` credits.
 
 ---
 
@@ -361,6 +416,8 @@ MeteringReport {
 
   cost: {
     creditsConsumed: number
+    capacityConsumed: number?                // capacity units consumed from provider
+    sourceProvider:   SubscriptionProvider?   // which provider's capacity was used
     breakdown: {
       category:     string                   // "inference" | "tool-use" | "storage" | etc.
       amount:       number
@@ -446,6 +503,25 @@ These extend the existing message envelope (`ProtocolMessage`) and are signed li
     { "tier": "high", "tasksCompleted": 12, "successRate": 0.83, "avgQualityScore": 0.85 }
   ],
 
+  "capacitySource": {
+    "provider": "anthropic",
+    "tier": "max",
+    "planName": "Claude Max",
+    "capacityType": "messages",
+    "totalCapacity": 1000,
+    "sharedCapacity": 500,
+    "reservedForOwner": 500,
+    "modelAccess": ["claude-sonnet-4", "claude-opus-4"],
+    "verified": false
+  },
+
+  "capacitySnapshot": {
+    "remainingInPeriod": 800,
+    "remainingShared": 400,
+    "renewsAt": "2026-04-01T00:00:00Z",
+    "utilizationRate": 0.2
+  },
+
   "modelInfo": {
     "provider": "anthropic",
     "modelId": "claude-sonnet-4-6",
@@ -529,122 +605,115 @@ These extend the existing message envelope (`ProtocolMessage`) and are signed li
 
 ---
 
-## 9. End-to-End Flow: Agent Joins Pool, Works, Earns, Spends
+## 9. End-to-End Flow: Share Capacity, Earn Credits, Use Others' Models
+
+This example shows Alice (Claude Max subscriber, ~80% unused capacity) and Bob (RTX 4090 owner running Ollama):
 
 ```
-  Owner                    Agent                   Registry/Platform              Other Agent
-  -----                    -----                   -----------------              -----------
+  Alice (Claude Max)          Registry/Platform           Bob (RTX 4090 + Ollama)
+  ------------------          -----------------           -----------------------
 
-  1. Configure agent
-     - Set quotas (10M tokens/day, 5 concurrent tasks)
-     - Set schedule (weekdays 9-5)
-     - Set capabilityTier: "medium"
+  1. Register with capacity source
+      |--- Agent Card -----------> Registry
+      |    capacitySource:         (stores card)
+      |      provider: anthropic
+      |      tier: max
+      |      sharedCapacity: 500
       |
-      |--- register -------> Agent Card -----------> Registry
-      |                      (with availability,     (stores card,
-      |                       quotas, schedule)       starts tracking)
+      |                                                     |--- Agent Card ------->
+      |                                                     |    capacitySource:
+      |                                                     |      provider: local
+      |                                                     |      tier: local-gpu
+      |                                                     |      capacityType: unlimited-local
+
+  2. Donate unused capacity → earn credits
+      |--- donate(1000) --------> Ledger
+      |    "Shared 50% of Claude Max"
+      |    [balance: 0 → 1000]
+      |                                                     |--- donate(500) ----->
+      |                                                     |    "Shared GPU time"
+      |                                                     |    [balance: 0 → 500]
+
+  3. Alice needs a fast draft (uses Bob's local GPU)
+      |--- discover(preferredProvider: local) --> Registry
+      |<-- Bob's card -------------------------
       |
-  2. Agent goes online
-      |                      |--- HEARTBEAT -------> Registry
-      |                      |    (status: online)   (marks available)
-      |                      |--- HEARTBEAT -------> (every 30s)
-      |
-  3. Task appears (effort: medium, reward: 500 credits)
-      |                      |<-- ANNOUNCE_TASK ---- Other Agent
-      |                      |    (effort: medium)
-      |                      |
-      |                      | [check: my tier >= task effort? YES]
-      |                      | [check: quota remaining? YES]
-      |                      | [check: within schedule? YES]
-      |                      |
-      |                      |--- BID -------------> Other Agent
-      |                      |    (price: 450 credits)
-      |
-  4. Awarded and works
-      |                      |<-- AWARD ------------ Other Agent
-      |                      |    (contract formed,
-      |                      |     450 credits escrowed)
-      |                      |
-      |                      |--- METERING_UPDATE -> Other Agent
-      |                      |    (50k tokens used so far)
-      |                      |
-      |                      |--- SUBMIT_RESULT ---> Other Agent
-      |                      |    (+ final MeteringReport)
-      |
-  5. Accepted — credits earned
-      |                      |<-- VERIFY (accepted)
-      |                      |    (+WorkReceipt)
-      |                      |
-      |                      | [credit balance: 0 -> 450]
-      |                      | [effortHistory.medium.tasksCompleted++]
-      |
-  6. Owner's agent now spends credits
-      |--- "Build me an API" -> Agent
-      |                         |--- ANNOUNCE_TASK -> Registry
-      |                         |    (effort: high,
-      |                         |     reward: 1000 credits)
-      |                         |
-      |                         |<-- BID ----------- Capable Agent
-      |                         |--- AWARD --------> Capable Agent
-      |                         |    (1000 credits escrowed
-      |                         |     from agent's balance)
+      |--- ANNOUNCE_TASK (effort: medium) -----> Bob
+      |<-- BID (350 credits) ------------------- Bob
+      |--- AWARD (350 credits escrowed) -------> Bob
+      |                                                     |--- work (local Llama) --->
+      |<-- SUBMIT_RESULT ---------------------------------- Bob
+      |--- VERIFY (accepted) -----------------> Bob
+      |    [Alice: 1000 → 650]                              [Bob: 500 → 850]
+
+  4. Bob needs Claude polish (uses Alice's Claude capacity)
+      |                                                     |--- discover(provider: anthropic)
+      |<-- ANNOUNCE_TASK (effort: medium) --- Bob
+      |--- BID (750 credits) ----------------> Bob          |    (Claude Max costs more)
+      |<-- AWARD (750 credits escrowed) ----- Bob
+      |--- work (Claude Opus) ------->
+      |--- SUBMIT_RESULT ------------------>  Bob
+      |<-- VERIFY (accepted) --------------- Bob
+      |    [Alice: 650 → 1400]                              [Bob: 850 → 100]
+
+  Result: Nobody paid extra money. Both used capacity they already had.
+  Alice: donated 1000, earned 750, spent 350 → 1400 available
+  Bob:   donated 500,  earned 350, spent 750 → 100 available
 ```
 
 ---
 
 ## 10. Implementation Plan
 
-### Phase 1: Schema Extensions (protocol layer)
+All phases are complete in the reference implementation.
 
-Add new Zod schemas for:
-- [ ] `EffortTier` enum
-- [ ] Extended `AvailabilityInfo` (schedule, quotas, heartbeat)
-- [ ] `AvailabilityWindow` object
-- [ ] `AgentQuotas` object
-- [ ] `CreditBalance` object
-- [ ] `CreditTransaction` object
-- [ ] `MeteringReport` object
-- [ ] Extended `TaskSpec` (effortTier, effortEstimate, creditReward)
-- [ ] Extended `Offer` (proposedEffortTier, proposedCreditPrice)
-- [ ] Extended `AgentDescription` (capabilityTier, effortHistory)
-- [ ] `HEARTBEAT` message type
-- [ ] `METERING_UPDATE` message type
+### Phase 1: Schema Extensions (protocol layer) — COMPLETE
 
-### Phase 2: Credit Settlement Adapter
+- [x] `EffortTier` enum, `SubscriptionProvider`, `SubscriptionTier`
+- [x] `CapacitySource`, `CapacitySnapshot` objects
+- [x] Extended `AvailabilityInfo` (schedule, quotas, heartbeat)
+- [x] `CreditBalance` with `bootstrapped`, `donated`, `consumed` fields
+- [x] `CreditTransaction` with `bootstrap` and `donate` types
+- [x] `MeteringReport` with `capacityConsumed` and `sourceProvider`
+- [x] Extended `AgentDescription` (capacitySource, capacitySnapshot)
+- [x] Extended `TaskSpec` (preferredProvider, acceptLocalModels)
+- [x] Extended `Offer` (capacitySource)
+- [x] Extended `Heartbeat` (capacitySnapshot)
+- [x] Extended `QuotaRemaining` (capacityRemaining, periodRenewsAt)
 
-- [ ] `CreditLedger` — in-memory credit balance tracker
-- [ ] `CreditSettlementAdapter` implementing `SettlementAdapter`
-- [ ] Credit transaction logging
-- [ ] Integration with existing escrow flow
+### Phase 2: Credit Settlement Adapter — COMPLETE
 
-### Phase 3: Effort-Based Discovery
+- [x] `CreditLedger.bootstrap()` (replaces purchase)
+- [x] `CreditLedger.donate()` — records capacity donation
+- [x] Deprecated `purchase()` alias for backward compatibility
+- [x] Balance tracking with `bootstrapped`, `donated`, `consumed`
 
-- [ ] Extend `CapabilityQuery` with `maxEffortTier` filter
-- [ ] Extend `AgentRegistry` to filter by effort tier eligibility
-- [ ] Effort-based pricing calculator
-- [ ] Bidding eligibility checks
+### Phase 3: Capacity-Aware Discovery — COMPLETE
 
-### Phase 4: Availability & Heartbeat
+- [x] `CapabilityQuery` with `preferredProvider`, `acceptLocalModels`, `minRemainingCapacity`
+- [x] `matchesQuery()` filters by provider, local models, remaining capacity
+- [x] Provider-aware pricing (`PROVIDER_TIER_MULTIPLIERS`)
+- [x] `generateAgentCard()` includes `capacitySource` and `capacitySnapshot`
+- [x] `hasRemainingCapacity()` helper for heartbeat state
 
-- [ ] Heartbeat message signing and validation
-- [ ] Registry heartbeat tracking (online/offline/stale detection)
-- [ ] Quota tracking and enforcement
-- [ ] Schedule-aware availability filtering
+### Phase 4: Availability & Heartbeat — COMPLETE
 
-### Phase 5: Metering
+- [x] `HeartbeatState` extended with `capacitySnapshot`
+- [x] `recordHeartbeat()` captures capacity snapshot
+- [x] All existing heartbeat tracking preserved
 
-- [ ] `MeteringReport` generation during task execution
-- [ ] `METERING_UPDATE` message handling
-- [ ] Metering validation (does reported usage match expected?)
-- [ ] Quota consumption tracking
+### Phase 5: Metering — COMPLETE
 
-### Phase 6: Integration Tests
+- [x] `MeteringTracker.startSession()` accepts `sourceProvider`
+- [x] Generated reports include `capacityConsumed` and `sourceProvider`
 
-- [ ] Full lifecycle: register → heartbeat → bid → work → earn → spend
-- [ ] Quota enforcement: agent at capacity rejects new tasks
-- [ ] Effort tier filtering: low-tier agent can't bid on high-tier task
-- [ ] Credit flow: escrow → release → balance update
-- [ ] Schedule enforcement: agent offline outside schedule windows
+### Phase 6: Integration Tests — COMPLETE
+
+- [x] 347 tests across 24 test files
+- [x] Capacity sharing lifecycle test (donate → earn → spend)
+- [x] Provider-based discovery filtering
+- [x] Provider-aware pricing tests
+- [x] Heartbeat with capacity snapshot
 
 ---
 
@@ -655,12 +724,13 @@ The following are explicitly **out of scope** for the protocol but expected to b
 | Concern | Why platform, not protocol |
 |---------|---------------------------|
 | Credit ledger persistence | Requires a database; protocol only defines the shape |
-| Fiat → credit conversion | Involves payment processing, KYC, etc. |
+| Subscription verification | Proving you actually have a Claude Max plan requires OAuth/API integration |
+| Capacity measurement | Tracking exact remaining capacity requires provider-specific API calls |
 | Task matching/scheduling | Different platforms will have different strategies |
 | Pool load balancing | Depends on platform architecture |
-| UI for quota/schedule config | UX concern |
+| UI for capacity sharing config | UX concern |
 | Credit pricing (base rates) | Market-driven, varies by platform |
-| Anti-fraud / sybil protection | Requires platform-level identity verification |
+| Anti-fraud / capacity fraud | Requires platform-level verification (see threat model) |
 | Promotion/demotion thresholds | Platform policy |
 
 ---
@@ -669,11 +739,12 @@ The following are explicitly **out of scope** for the protocol but expected to b
 
 | Existing Spec | How Exchange Layer Extends It |
 |---------------|-------------------------------|
-| **object-model** | Adds EffortTier, CreditBalance, CreditTransaction, MeteringReport, AgentQuotas, AvailabilityWindow |
-| **discovery** | Extends AgentDescription with capabilityTier, effortHistory; extends AvailabilityInfo with schedule, quotas; extends CapabilityQuery with effort filter |
-| **state-machine** | No changes — effort and credits flow through existing states |
-| **messages** | Adds HEARTBEAT, METERING_UPDATE message types |
+| **object-model** | Adds SubscriptionProvider, SubscriptionTier, CapacitySource, CapacitySnapshot, EffortTier, CreditBalance (with bootstrapped/donated/consumed), CreditTransaction (bootstrap/donate types) |
+| **discovery** | Extends AgentDescription with capacitySource, capacitySnapshot; extends CapabilityQuery with preferredProvider, acceptLocalModels, minRemainingCapacity; provider-aware pricing |
+| **state-machine** | No changes — capacity sharing and credits flow through existing states |
+| **messages** | Adds HEARTBEAT (with capacitySnapshot), METERING_UPDATE (with capacityConsumed, sourceProvider) |
 | **identity** | No changes — all new messages use existing DID + Ed25519 signing |
 | **verification** | Effort tier suggests default verification method (see tier table) |
 | **reputation** | Extends WorkReceipt context with effort tier; ReputationEngine tracks per-tier metrics |
-| **settlement** | New CreditSettlementAdapter; Price.currency gains "credits" option |
+| **settlement** | CreditLedger with bootstrap()/donate(); CreditSettlementAdapter |
+| **threat-model** | New threats: capacity fraud, free-riding |

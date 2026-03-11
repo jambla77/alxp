@@ -1,6 +1,58 @@
 import { z } from "zod";
 import { DID, ISO8601, ULID, Signature, EffortTier } from "./primitives.js";
 
+// ── Capacity Sharing ──
+
+/** Provider of AI capacity */
+export const SubscriptionProvider = z.enum([
+  "anthropic",
+  "openai",
+  "google",
+  "xai",
+  "local",
+  "other",
+]);
+export type SubscriptionProvider = z.infer<typeof SubscriptionProvider>;
+
+/** Tier of subscription plan */
+export const SubscriptionTier = z.enum([
+  "free",
+  "pro",
+  "max",
+  "team",
+  "enterprise",
+  "local-gpu",
+  "other",
+]);
+export type SubscriptionTier = z.infer<typeof SubscriptionTier>;
+
+/** Declares where an agent's capacity comes from */
+export const CapacitySource = z.object({
+  provider: SubscriptionProvider,
+  tier: SubscriptionTier,
+  planName: z.string().optional(),
+  capacityType: z.enum(["tokens", "messages", "compute-minutes", "unlimited-local"]),
+  billingCycle: z.object({
+    renewsAt: ISO8601.optional(),
+    periodDays: z.number().int().positive().optional(),
+  }).optional(),
+  totalCapacity: z.number().nonnegative().optional(),
+  sharedCapacity: z.number().nonnegative().optional(),
+  reservedForOwner: z.number().nonnegative().optional(),
+  modelAccess: z.array(z.string()).optional(),
+  verified: z.boolean().optional(),
+});
+export type CapacitySource = z.infer<typeof CapacitySource>;
+
+/** Real-time snapshot of remaining capacity */
+export const CapacitySnapshot = z.object({
+  remainingInPeriod: z.number().nonnegative().optional(),
+  remainingShared: z.number().nonnegative().optional(),
+  renewsAt: ISO8601.optional(),
+  utilizationRate: z.number().min(0).max(1).optional(),
+});
+export type CapacitySnapshot = z.infer<typeof CapacitySnapshot>;
+
 // ── Effort ──
 
 /** Effort estimate — requester's estimate of task resource needs */
@@ -29,7 +81,9 @@ export const CreditBalance = z.object({
   escrowed: z.number().nonnegative(),
   earned: z.number().nonnegative(),
   spent: z.number().nonnegative(),
-  purchased: z.number().nonnegative(),
+  bootstrapped: z.number().nonnegative(),
+  donated: z.number().nonnegative(),
+  consumed: z.number().nonnegative(),
   lastUpdated: ISO8601,
 });
 export type CreditBalance = z.infer<typeof CreditBalance>;
@@ -41,7 +95,8 @@ export const CreditTransactionType = z.enum([
   "escrow",
   "release",
   "refund",
-  "purchase",
+  "bootstrap",
+  "donate",
   "grant",
   "bonus",
   "slash",
@@ -97,6 +152,8 @@ export const MeteringReport = z.object({
 
   cost: z.object({
     creditsConsumed: z.number().nonnegative(),
+    capacityConsumed: z.number().nonnegative().optional(),
+    sourceProvider: SubscriptionProvider.optional(),
     breakdown: z.array(UsageBreakdown).optional(),
   }),
 
@@ -134,5 +191,7 @@ export const QuotaRemaining = z.object({
   tokensThisDay: z.number().int().nonnegative().optional(),
   tasksThisHour: z.number().int().nonnegative().optional(),
   tasksThisDay: z.number().int().nonnegative().optional(),
+  capacityRemaining: z.number().nonnegative().optional(),
+  periodRenewsAt: ISO8601.optional(),
 });
 export type QuotaRemaining = z.infer<typeof QuotaRemaining>;

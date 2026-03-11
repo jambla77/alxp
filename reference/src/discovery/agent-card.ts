@@ -20,7 +20,12 @@ import type {
   CostModel as CostModelType,
   AvailabilityInfo as AvailabilityInfoType,
 } from "../types/index.js";
-import type { EffortHistory } from "../types/exchange.js";
+import type {
+  EffortHistory,
+  CapacitySource as CapacitySourceType,
+  CapacitySnapshot as CapacitySnapshotType,
+  SubscriptionProvider,
+} from "../types/exchange.js";
 
 /** Options for generating an Agent Card */
 export interface AgentCardOptions {
@@ -41,6 +46,8 @@ export interface AgentCardOptions {
   // Exchange layer
   capabilityTier?: EffortTier;
   effortHistory?: EffortHistory[];
+  capacitySource?: CapacitySourceType;
+  capacitySnapshot?: CapacitySnapshotType;
   availability?: Partial<AvailabilityInfoType>;
 }
 
@@ -58,6 +65,8 @@ export function generateAgentCard(options: AgentCardOptions): AgentDescriptionTy
     modelInfo,
     capabilityTier,
     effortHistory,
+    capacitySource,
+    capacitySnapshot,
     availability: availabilityOverrides,
   } = options;
 
@@ -77,6 +86,8 @@ export function generateAgentCard(options: AgentCardOptions): AgentDescriptionTy
     trustTier,
     capabilityTier,
     effortHistory,
+    capacitySource,
+    capacitySnapshot,
     created: now,
     updated: now,
     signature: signString(`${identity.did}:${now}`, identity.keyPair.privateKey),
@@ -97,6 +108,10 @@ export interface CapabilityQuery {
   // Exchange layer
   effortTier?: EffortTier;
   onlineOnly?: boolean;
+  // Capacity sharing
+  preferredProvider?: SubscriptionProvider;
+  acceptLocalModels?: boolean;
+  minRemainingCapacity?: number;
 }
 
 /** Effort tier ranking (higher number = more capable) */
@@ -164,6 +179,24 @@ export function matchesQuery(
   // Online filter
   if (query.onlineOnly && card.availability.status === "offline") {
     return false;
+  }
+
+  // Preferred provider filter
+  if (query.preferredProvider && card.capacitySource?.provider !== query.preferredProvider) {
+    return false;
+  }
+
+  // Local models filter
+  if (query.acceptLocalModels === false && card.capacitySource?.provider === "local") {
+    return false;
+  }
+
+  // Minimum remaining capacity filter
+  if (query.minRemainingCapacity !== undefined) {
+    const remaining = card.capacitySnapshot?.remainingShared;
+    if (remaining === undefined || remaining < query.minRemainingCapacity) {
+      return false;
+    }
   }
 
   return true;
@@ -301,12 +334,27 @@ export function calculateCreditCost(
     baseCreditRate = 100,
     complexityAdjustment = 0,
     customMultipliers,
+    providerTier,
   } = options;
 
   const multipliers = customMultipliers ?? EFFORT_MULTIPLIERS;
   const multiplier = multipliers[effortTier];
-  return Math.round(baseCreditRate * multiplier * (1 + complexityAdjustment));
+  const providerMultiplier = providerTier
+    ? (PROVIDER_TIER_MULTIPLIERS[providerTier] ?? 1)
+    : 1;
+  return Math.round(baseCreditRate * multiplier * (1 + complexityAdjustment) * providerMultiplier);
 }
+
+/** Provider tier multipliers — capacity from higher-tier providers is worth more */
+export const PROVIDER_TIER_MULTIPLIERS: Record<string, number> = {
+  "anthropic:max": 1.5,
+  "anthropic:pro": 1.2,
+  "openai:pro": 1.2,
+  "google:pro": 1.1,
+  "xai:pro": 1.1,
+  "local:local-gpu": 0.7,
+  "local:free": 0.5,
+};
 
 /** Options for credit cost calculation */
 export interface CreditCostOptions {
@@ -316,4 +364,6 @@ export interface CreditCostOptions {
   complexityAdjustment?: number;
   /** Custom multipliers per tier (overrides defaults) */
   customMultipliers?: Record<EffortTier, number>;
+  /** Provider and tier for capacity-aware pricing (e.g. "anthropic:max") */
+  providerTier?: string;
 }

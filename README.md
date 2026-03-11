@@ -6,21 +6,22 @@ ALXP is a **protocol**, not a platform. Like HTTP lets any web server talk to an
 
 ## Why ALXP?
 
-AI agents today are isolated. An agent built with one framework can't ask an agent on another machine to help with a task. There's no standard way for agents to:
+Most people pay for AI subscriptions — Claude Pro/Max, ChatGPT Plus, Gemini Advanced — but don't use all their capacity. Meanwhile, others need a different model or more compute than their plan provides.
 
-- **Find each other** — discover what other agents can do
-- **Negotiate** — agree on price, deadline, and verification
-- **Exchange work** — send context securely, receive results
-- **Verify** — confirm the work was done correctly
-- **Build trust** — track reputation across interactions
+ALXP lets you **share your unused AI capacity** with others and use theirs in return. Think SETI@home for AI subscriptions:
 
-ALXP solves all of these with a single protocol stack.
+- **Share what you already pay for** — donate unused subscription capacity, earn credits
+- **Access other models for free** — spend credits to use someone else's Claude, GPT-4, or local GPU
+- **Nobody pays extra money** — everyone uses capacity they'd otherwise waste
+- **Find agents automatically** — discover who's sharing what capacity, what models they have access to
+- **Verify results** — 3-tier verification from automated checks to multi-validator consensus
+- **Build trust** — portable reputation across interactions
 
 ### What you can do with it
 
-- **Outsource coding tasks** — send files from your project to AI workers on your LAN or the internet, get modified code back as git branches
+- **Share subscription capacity** — donate unused Claude/OpenAI/Gemini quota, earn credits you can spend on other models
 - **Run worker agents** — spin up agents that accept tasks from the network, powered by any LLM (Ollama, OpenAI, Claude, local models)
-- **Build agent marketplaces** — agents publish capabilities, requesters find and hire them
+- **Outsource coding tasks** — send files from your project to AI workers on your LAN or the internet, get modified code back as git branches
 - **Distribute compute** — split large tasks across multiple agents running on different machines
 - **Verify AI output** — 3-tier verification from automated checks to economic staking to multi-validator consensus
 
@@ -84,8 +85,8 @@ npm test
 ```
 
 ```
- ✓ 17 test files passed
- ✓ 165 tests passed
+ ✓ 24 test files passed
+ ✓ 347 tests passed
 ```
 
 ### Try the task dispatch pipeline
@@ -110,7 +111,7 @@ This starts a registry, a worker agent, and a requester agent — all on your ma
 
 ### Use a real LLM
 
-With Ollama running locally:
+**With Ollama (zero cost, no API key needed):**
 
 ```bash
 npx tsx examples/task-dispatch/run.ts --local-only \
@@ -120,16 +121,25 @@ npx tsx examples/task-dispatch/run.ts --local-only \
   --solver openai --llm-model codellama
 ```
 
-With Claude:
+**Share your Anthropic subscription capacity:**
 
 ```bash
-export ANTHROPIC_API_KEY=sk-ant-...
 npx tsx examples/task-dispatch/run.ts --local-only \
   --project-root ~/myproject \
   --objective "Write unit tests for the auth module" \
   --files src/auth/login.ts \
   --solver claude
 ```
+
+### Try the capacity sharing demo
+
+See how two agents share subscription capacity and local GPU time:
+
+```bash
+npx tsx examples/capacity-sharing/demo.ts
+```
+
+Alice (Claude Max subscriber) and Bob (RTX 4090 owner) donate unused capacity, earn credits, and use each other's resources — nobody pays extra.
 
 ### Dispatch multiple tasks
 
@@ -231,14 +241,15 @@ VALIDATING → ACCEPTED → PAYMENT_PENDING → SETTLED
 
 ```
 alxp/
-├── spec/                          # Protocol specification (8 documents)
+├── spec/                          # Protocol specification (9 documents)
 │   ├── object-model.md            # 12 core objects and primitives
 │   ├── state-machine.md           # 19 states, 32 transitions
 │   ├── messages.md                # 8 message types, signing, transport
 │   ├── identity.md                # DIDs, Ed25519, X25519, UCAN
-│   ├── discovery.md               # Agent cards, registries
+│   ├── discovery.md               # Agent cards, capacity-based discovery
 │   ├── verification.md            # 3-tier verification, Merkle provenance
 │   ├── reputation.md              # Work receipts, scoring
+│   ├── exchange.md                # Capacity sharing, credit economy, effort levels
 │   └── threat-model.md            # 6 threat categories, mitigations
 │
 ├── reference/                     # TypeScript reference implementation
@@ -255,7 +266,7 @@ alxp/
 │   │   ├── settlement/            # Escrow adapter interface
 │   │   └── delegation/            # UCAN-based sub-delegation
 │   │
-│   ├── tests/                     # 165 tests across 17 files
+│   ├── tests/                     # 347 tests across 24 files
 │   │
 │   └── examples/
 │       ├── simple-requester/      # Minimal requester agent
@@ -263,7 +274,8 @@ alxp/
 │       ├── ollama-to-cloud/       # Code review with encrypted context
 │       ├── math-offload/          # Math computation with sealed envelopes
 │       ├── stress-test/           # Multi-agent load testing (250+ tasks)
-│       └── task-dispatch/         # Real coding task dispatch (the main demo)
+│       ├── task-dispatch/         # Real coding task dispatch (the main demo)
+│       └── capacity-sharing/      # Capacity sharing demo (donate → earn → spend)
 │
 └── schemas/                       # Auto-generated JSON schemas
 ```
@@ -278,6 +290,7 @@ alxp/
 | [math-offload](reference/examples/math-offload/) | Sealed envelopes with Ed25519-to-X25519 key conversion |
 | [stress-test](reference/examples/stress-test/) | 25 workers, 5 requesters, 250 tasks across 2 machines |
 | [task-dispatch](reference/examples/task-dispatch/) | **Real coding tasks** — dispatch from your project, merge as git branches |
+| [capacity-sharing](reference/examples/capacity-sharing/) | **Capacity sharing** — donate subscription capacity, earn credits, use others' models |
 
 ## Tech Stack
 
@@ -290,15 +303,16 @@ alxp/
 
 ## Specification
 
-The full protocol is specified in 8 documents under [`spec/`](spec/):
+The full protocol is specified in 9 documents under [`spec/`](spec/):
 
 - [Object Model](spec/object-model.md) — all 12 core types, primitives, relationships
 - [State Machine](spec/state-machine.md) — 19 states, 32 transitions, guard conditions
 - [Messages](spec/messages.md) — 8 message types, JSON-RPC transport binding
 - [Identity](spec/identity.md) — DIDs, Ed25519 signing, X25519 encryption, UCAN delegation
-- [Discovery](spec/discovery.md) — agent cards, capability matching, registry HTTP API
+- [Discovery](spec/discovery.md) — agent cards, capability matching, capacity-based queries
 - [Verification](spec/verification.md) — 3-tier verification, Merkle provenance trees
 - [Reputation](spec/reputation.md) — work receipt scoring, settlement, dispute impact
+- [Exchange](spec/exchange.md) — capacity sharing network, credit economy, effort levels
 - [Threat Model](spec/threat-model.md) — 6 threat categories, mitigations, trust tiers
 
 ## License

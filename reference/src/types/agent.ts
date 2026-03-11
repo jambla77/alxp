@@ -11,7 +11,7 @@ import {
   EffortTier,
   Duration,
 } from "./primitives.js";
-import { EffortHistory } from "./exchange.js";
+import { EffortHistory, CapacitySource, CapacitySnapshot } from "./exchange.js";
 
 /** Machine-parseable capability declaration */
 export const CapabilityDescription = z.object({
@@ -70,6 +70,8 @@ export const AgentDescription = z.object({
   // Exchange layer
   capabilityTier: EffortTier.optional(),
   effortHistory: z.array(EffortHistory).optional(),
+  capacitySource: CapacitySource.optional(),
+  capacitySnapshot: CapacitySnapshot.optional(),
 
   // Metadata
   created: ISO8601,

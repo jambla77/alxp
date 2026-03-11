@@ -8,7 +8,7 @@
 
 import { ulid } from "ulid";
 import type { DID } from "../types/primitives.js";
-import type { MeteringReport, UsageBreakdown } from "../types/exchange.js";
+import type { MeteringReport, UsageBreakdown, SubscriptionProvider } from "../types/exchange.js";
 import type { AgentQuotas } from "../types/primitives.js";
 
 /** Running usage counters for a single task */
@@ -26,6 +26,7 @@ interface MeteringSession {
   contractId: string;
   taskId: string;
   worker: string;
+  sourceProvider?: SubscriptionProvider;
   startedAt: Date;
   counters: UsageCounters;
   reports: MeteringReport[];
@@ -45,7 +46,7 @@ export class MeteringTracker {
   private sessions = new Map<string, MeteringSession>();
 
   /** Start a metering session for a contract */
-  startSession(contractId: string, taskId: string, worker: string): void {
+  startSession(contractId: string, taskId: string, worker: string, sourceProvider?: SubscriptionProvider): void {
     if (this.sessions.has(contractId)) {
       throw new Error(`Session already exists for contract ${contractId}`);
     }
@@ -54,6 +55,7 @@ export class MeteringTracker {
       contractId,
       taskId,
       worker,
+      sourceProvider,
       startedAt: new Date(),
       counters: {
         inputTokens: 0,
@@ -98,7 +100,7 @@ export class MeteringTracker {
    */
   generateReport(
     contractId: string,
-    costCalculator?: (counters: UsageCounters) => { creditsConsumed: number; breakdown?: UsageBreakdown[] },
+    costCalculator?: (counters: UsageCounters) => { creditsConsumed: number; capacityConsumed?: number; breakdown?: UsageBreakdown[] },
   ): MeteringReport {
     const session = this.getActiveSession(contractId);
     const now = new Date();
@@ -127,6 +129,8 @@ export class MeteringTracker {
       },
       cost: {
         creditsConsumed: cost.creditsConsumed,
+        capacityConsumed: cost.capacityConsumed,
+        sourceProvider: session.sourceProvider,
         breakdown: cost.breakdown,
       },
       signature: `metering:${ulid()}`,
@@ -142,7 +146,7 @@ export class MeteringTracker {
    */
   finalize(
     contractId: string,
-    costCalculator?: (counters: UsageCounters) => { creditsConsumed: number; breakdown?: UsageBreakdown[] },
+    costCalculator?: (counters: UsageCounters) => { creditsConsumed: number; capacityConsumed?: number; breakdown?: UsageBreakdown[] },
   ): MeteringReport {
     const session = this.getActiveSession(contractId);
     const report = this.generateReport(contractId, costCalculator);

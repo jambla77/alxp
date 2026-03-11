@@ -16,7 +16,7 @@ import {
   AsyncConfig,
 } from "./primitives.js";
 import { SpotCheckConfig } from "./staking.js";
-import { EffortEstimate } from "./exchange.js";
+import { EffortEstimate, SubscriptionProvider } from "./exchange.js";
 
 /** Task input — context or data for the task */
 export const TaskInput = z.object({
@@ -73,6 +73,8 @@ export const TaskSpec = z.object({
   effortTier: EffortTier.optional(),
   effortEstimate: EffortEstimate.optional(),
   creditReward: z.number().nonnegative().optional(),
+  preferredProvider: SubscriptionProvider.optional(),
+  acceptLocalModels: z.boolean().optional(),
 
   signature: Signature,
 });
