@@ -8,8 +8,10 @@ import {
   CostModel,
   AvailabilityInfo,
   TrustTier,
+  EffortTier,
   Duration,
 } from "./primitives.js";
+import { EffortHistory } from "./exchange.js";
 
 /** Machine-parseable capability declaration */
 export const CapabilityDescription = z.object({
@@ -64,6 +66,10 @@ export const AgentDescription = z.object({
   availability: AvailabilityInfo,
   jurisdictions: z.array(z.string()).optional(),
   trustTier: TrustTier,
+
+  // Exchange layer
+  capabilityTier: EffortTier.optional(),
+  effortHistory: z.array(EffortHistory).optional(),
 
   // Metadata
   created: ISO8601,

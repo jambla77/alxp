@@ -9,6 +9,7 @@ import { WorkReceipt } from "./receipt.js";
 import { DisputeRecord } from "./dispute.js";
 import { Challenge } from "./staking.js";
 import { ValidatorAssessment } from "./consensus.js";
+import { MeteringReport, QuotaRemaining } from "./exchange.js";
 
 /** Settlement proof */
 export const SettlementProof = z.object({
@@ -77,6 +78,27 @@ export const ValidatorAssess = z.object({
 });
 export type ValidatorAssess = z.infer<typeof ValidatorAssess>;
 
+// ── Exchange Layer Messages ──
+
+/** Agent heartbeat — liveness and capacity signal */
+export const Heartbeat = z.object({
+  type: z.literal("HEARTBEAT"),
+  agentId: DID,
+  status: z.enum(["online", "busy", "offline"]),
+  capacity: z.number().min(0).max(1),
+  currentTasks: z.number().int().nonnegative(),
+  quotaRemaining: QuotaRemaining.optional(),
+});
+export type Heartbeat = z.infer<typeof Heartbeat>;
+
+/** Interim metering update during task execution */
+export const MeteringUpdate = z.object({
+  type: z.literal("METERING_UPDATE"),
+  contractId: ULID,
+  report: MeteringReport,
+});
+export type MeteringUpdate = z.infer<typeof MeteringUpdate>;
+
 /** Discriminated union of all message payloads */
 export const MessagePayload = z.discriminatedUnion("type", [
   AnnounceTask,
@@ -87,6 +109,8 @@ export const MessagePayload = z.discriminatedUnion("type", [
   Settle,
   ChallengeResult,
   ValidatorAssess,
+  Heartbeat,
+  MeteringUpdate,
 ]);
 export type MessagePayload = z.infer<typeof MessagePayload>;
 

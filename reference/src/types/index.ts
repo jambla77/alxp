@@ -10,4 +10,5 @@ export * from "./dispute.js";
 export * from "./staking.js";
 export * from "./consensus.js";
 export * from "./merkle.js";
+export * from "./exchange.js";
 export * from "./message.js";

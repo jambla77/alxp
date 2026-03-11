@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { DID, ISO8601, ULID, Duration, Price, Signature } from "./primitives.js";
+import { DID, ISO8601, ULID, Duration, Price, Signature, EffortTier } from "./primitives.js";
 
 /** Context request — what the worker needs from the requester */
 export const ContextRequest = z.object({
@@ -64,6 +64,10 @@ export const Offer = z.object({
   // Worker's evidence
   relevantReputation: z.array(ReputationClaim).default([]),
   relevantCredentials: z.array(VerifiableCredential).default([]),
+
+  // Exchange layer
+  proposedEffortTier: EffortTier.optional(),
+  proposedCreditPrice: z.number().nonnegative().optional(),
 
   signature: Signature,
 });

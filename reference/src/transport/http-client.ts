@@ -12,6 +12,8 @@ const TYPE_TO_METHOD: Record<MessagePayload["type"], string> = {
   SETTLE: "alxp.settle",
   CHALLENGE_RESULT: "alxp.challengeResult",
   VALIDATOR_ASSESS: "alxp.validatorAssess",
+  HEARTBEAT: "alxp.heartbeat",
+  METERING_UPDATE: "alxp.meteringUpdate",
 };
 
 /** JSON-RPC response */

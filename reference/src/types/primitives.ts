@@ -42,6 +42,10 @@ export type PrivacyClass = z.infer<typeof PrivacyClass>;
 export const Priority = z.enum(["low", "normal", "high", "critical"]);
 export type Priority = z.infer<typeof Priority>;
 
+/** Effort tier — task complexity classification and agent capability level */
+export const EffortTier = z.enum(["trivial", "low", "medium", "high", "critical"]);
+export type EffortTier = z.infer<typeof EffortTier>;
+
 /** Task state */
 export const TaskState = z.enum([
   "POSTED",
@@ -112,11 +116,38 @@ export const ServiceEndpoint = z.object({
 });
 export type ServiceEndpoint = z.infer<typeof ServiceEndpoint>;
 
+/** Availability window — when an agent is available */
+export const AvailabilityWindow = z.object({
+  dayOfWeek: z.array(z.number().int().min(0).max(6)).default([]),
+  startTime: z.string().regex(/^\d{2}:\d{2}$/, "Must be HH:MM format"),
+  endTime: z.string().regex(/^\d{2}:\d{2}$/, "Must be HH:MM format"),
+  timezone: z.string().optional(),
+  capacity: z.number().min(0).max(1).default(1),
+});
+export type AvailabilityWindow = z.infer<typeof AvailabilityWindow>;
+
+/** Agent quotas — resource limits set by the owner */
+export const AgentQuotas = z.object({
+  maxTokensPerHour: z.number().int().nonnegative().optional(),
+  maxTokensPerDay: z.number().int().nonnegative().optional(),
+  maxTasksPerHour: z.number().int().nonnegative().optional(),
+  maxTasksPerDay: z.number().int().nonnegative().optional(),
+  maxConcurrentTasks: z.number().int().nonnegative().optional(),
+  maxCreditsPerDay: z.number().nonnegative().optional(),
+  reservedCapacity: z.number().min(0).max(1).optional(),
+});
+export type AgentQuotas = z.infer<typeof AgentQuotas>;
+
 /** Availability information */
 export const AvailabilityInfo = z.object({
   status: z.enum(["online", "busy", "offline"]),
-  capacity: z.number().int().nonnegative().optional(),
+  capacity: z.number().min(0).max(1).optional(),
   avgLatencyMs: z.number().nonnegative().optional(),
+  schedule: z.array(AvailabilityWindow).optional(),
+  quotas: AgentQuotas.optional(),
+  poolId: z.string().optional(),
+  heartbeatUrl: URL_.optional(),
+  lastHeartbeat: ISO8601.optional(),
 });
 export type AvailabilityInfo = z.infer<typeof AvailabilityInfo>;
 

@@ -16,8 +16,11 @@ import type {
   AgentDescription as AgentDescriptionType,
   CapabilityDescription as CapabilityDescriptionType,
   TrustTier,
+  EffortTier,
   CostModel as CostModelType,
+  AvailabilityInfo as AvailabilityInfoType,
 } from "../types/index.js";
+import type { EffortHistory } from "../types/exchange.js";
 
 /** Options for generating an Agent Card */
 export interface AgentCardOptions {
@@ -35,6 +38,10 @@ export interface AgentCardOptions {
     contextWindow?: number;
     maxOutputTokens?: number;
   };
+  // Exchange layer
+  capabilityTier?: EffortTier;
+  effortHistory?: EffortHistory[];
+  availability?: Partial<AvailabilityInfoType>;
 }
 
 /**
@@ -49,6 +56,9 @@ export function generateAgentCard(options: AgentCardOptions): AgentDescriptionTy
     costModel,
     jurisdictions,
     modelInfo,
+    capabilityTier,
+    effortHistory,
+    availability: availabilityOverrides,
   } = options;
 
   const now = new Date().toISOString();
@@ -62,9 +72,11 @@ export function generateAgentCard(options: AgentCardOptions): AgentDescriptionTy
     tools: [],
     modelInfo,
     costModel,
-    availability: { status: "online" },
+    availability: { status: "online", ...availabilityOverrides },
     jurisdictions,
     trustTier,
+    capabilityTier,
+    effortHistory,
     created: now,
     updated: now,
     signature: signString(`${identity.did}:${now}`, identity.keyPair.privateKey),
@@ -82,7 +94,19 @@ export interface CapabilityQuery {
   priceCurrency?: string;
   requiredTrustTier?: TrustTier;
   tags?: string[];
+  // Exchange layer
+  effortTier?: EffortTier;
+  onlineOnly?: boolean;
 }
+
+/** Effort tier ranking (higher number = more capable) */
+const EFFORT_TIER_RANK: Record<EffortTier, number> = {
+  trivial: 0,
+  low: 1,
+  medium: 2,
+  high: 3,
+  critical: 4,
+};
 
 /**
  * Check if an agent card matches a capability query.
@@ -132,5 +156,164 @@ export function matchesQuery(
     }
   }
 
+  // Effort tier: agent's capabilityTier must be >= task's effortTier
+  if (query.effortTier) {
+    if (!canHandleEffortTier(card, query.effortTier)) return false;
+  }
+
+  // Online filter
+  if (query.onlineOnly && card.availability.status === "offline") {
+    return false;
+  }
+
   return true;
+}
+
+// ── Effort Tier Utilities ──
+
+/**
+ * Check if an agent can handle a given effort tier.
+ * Agent's capabilityTier must be >= the required effort tier.
+ * If the agent has no capabilityTier declared, it can only handle "trivial".
+ */
+export function canHandleEffortTier(
+  card: AgentDescriptionType,
+  effortTier: EffortTier,
+): boolean {
+  const agentRank = EFFORT_TIER_RANK[card.capabilityTier ?? "trivial"];
+  const taskRank = EFFORT_TIER_RANK[effortTier];
+  return agentRank >= taskRank;
+}
+
+/**
+ * Check if an agent is eligible to bid on a task based on effort tier
+ * and track record. Returns { eligible, reason }.
+ */
+export function checkBidEligibility(
+  card: AgentDescriptionType,
+  effortTier: EffortTier,
+  options: BidEligibilityOptions = {},
+): BidEligibilityResult {
+  const {
+    demotionThreshold = 0.5,
+    demotionMinTasks = 10,
+  } = options;
+
+  // Basic capability check
+  if (!canHandleEffortTier(card, effortTier)) {
+    return {
+      eligible: false,
+      reason: `Agent capability tier "${card.capabilityTier ?? "trivial"}" is below required effort tier "${effortTier}"`,
+    };
+  }
+
+  // If agent has effort history, check track record at this tier
+  if (card.effortHistory && card.effortHistory.length > 0) {
+    const historyAtTier = card.effortHistory.find((h) => h.tier === effortTier);
+
+    if (historyAtTier && historyAtTier.tasksCompleted >= demotionMinTasks) {
+      if (historyAtTier.successRate < demotionThreshold) {
+        return {
+          eligible: false,
+          reason: `Agent success rate at "${effortTier}" tier is ${(historyAtTier.successRate * 100).toFixed(0)}% (below ${(demotionThreshold * 100).toFixed(0)}% threshold over ${historyAtTier.tasksCompleted} tasks)`,
+        };
+      }
+    }
+  }
+
+  return { eligible: true };
+}
+
+/** Options for bid eligibility checking */
+export interface BidEligibilityOptions {
+  /** Minimum success rate to remain eligible at a tier (default: 0.5) */
+  minSuccessRate?: number;
+  /** Minimum tasks at a lower tier before promotion is considered (default: 20) */
+  minTasksForPromotion?: number;
+  /** Success rate below which an agent is demoted (default: 0.5) */
+  demotionThreshold?: number;
+  /** Minimum tasks before demotion can trigger (default: 10) */
+  demotionMinTasks?: number;
+}
+
+/** Result of bid eligibility check */
+export interface BidEligibilityResult {
+  eligible: boolean;
+  reason?: string;
+}
+
+/**
+ * Suggest a capability tier promotion based on effort history.
+ * Returns the recommended new tier, or null if no promotion is warranted.
+ */
+export function suggestPromotion(
+  card: AgentDescriptionType,
+  options: { minTasks?: number; minSuccessRate?: number } = {},
+): EffortTier | null {
+  const { minTasks = 20, minSuccessRate = 0.8 } = options;
+  const currentTier = card.capabilityTier ?? "trivial";
+  const currentRank = EFFORT_TIER_RANK[currentTier];
+
+  if (currentRank >= 4) return null; // Already at critical, can't promote
+
+  const historyAtCurrent = card.effortHistory?.find((h) => h.tier === currentTier);
+
+  if (
+    historyAtCurrent &&
+    historyAtCurrent.tasksCompleted >= minTasks &&
+    historyAtCurrent.successRate >= minSuccessRate
+  ) {
+    const tiers: EffortTier[] = ["trivial", "low", "medium", "high", "critical"];
+    return tiers[currentRank + 1]!;
+  }
+
+  return null;
+}
+
+// ── Effort-Based Pricing ──
+
+/** Default credit multipliers per effort tier */
+export const EFFORT_MULTIPLIERS: Record<EffortTier, number> = {
+  trivial: 1,
+  low: 2,
+  medium: 5,
+  high: 10,
+  critical: 25,
+};
+
+/** Default verification method per effort tier */
+export const EFFORT_VERIFICATION: Record<EffortTier, string> = {
+  trivial: "automated",
+  low: "automated",
+  medium: "optimistic",
+  high: "optimistic",
+  critical: "consensus",
+};
+
+/**
+ * Calculate credit cost for a task based on effort tier.
+ */
+export function calculateCreditCost(
+  effortTier: EffortTier,
+  options: CreditCostOptions = {},
+): number {
+  const {
+    baseCreditRate = 100,
+    complexityAdjustment = 0,
+    customMultipliers,
+  } = options;
+
+  const multipliers = customMultipliers ?? EFFORT_MULTIPLIERS;
+  const multiplier = multipliers[effortTier];
+  return Math.round(baseCreditRate * multiplier * (1 + complexityAdjustment));
+}
+
+/** Options for credit cost calculation */
+export interface CreditCostOptions {
+  /** Base credit rate (default: 100) */
+  baseCreditRate?: number;
+  /** Complexity adjustment from -0.5 to 1.0 (default: 0) */
+  complexityAdjustment?: number;
+  /** Custom multipliers per tier (overrides defaults) */
+  customMultipliers?: Record<EffortTier, number>;
 }

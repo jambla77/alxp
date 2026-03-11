@@ -30,6 +30,8 @@ const METHOD_MAP: Record<string, MessagePayload["type"]> = {
   "alxp.settle": "SETTLE",
   "alxp.challengeResult": "CHALLENGE_RESULT",
   "alxp.validatorAssess": "VALIDATOR_ASSESS",
+  "alxp.heartbeat": "HEARTBEAT",
+  "alxp.meteringUpdate": "METERING_UPDATE",
 };
 
 /** ALXP HTTP Server using JSON-RPC 2.0 over HTTPS */

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { DID, ISO8601, ULID, Price, Signature } from "./primitives.js";
+import { DID, ISO8601, ULID, Price, Signature, EffortTier } from "./primitives.js";
 
 /** Settlement reference */
 export const SettlementReference = z.object({
@@ -34,6 +34,9 @@ export const WorkReceipt = z.object({
   // Verification metadata
   provenanceRootHash: z.string().optional(),
   verificationTier: z.enum(["automated", "economic", "consensus", "human"]).optional(),
+
+  // Exchange layer
+  effortTier: EffortTier.optional(),
 
   // Both parties sign to prevent fabrication
   requesterSignature: Signature,

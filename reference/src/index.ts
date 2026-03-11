@@ -39,8 +39,8 @@ export { createSealedEnvelope, decryptPayload, redactEnvelope, isEnvelopeExpired
 export type { CreateContextEnvelopeOptions, SealedContextEnvelope } from "./context/envelope.js";
 
 // Discovery
-export { generateAgentCard, matchesQuery } from "./discovery/agent-card.js";
-export type { AgentCardOptions, CapabilityQuery } from "./discovery/agent-card.js";
+export { generateAgentCard, matchesQuery, canHandleEffortTier, checkBidEligibility, suggestPromotion, calculateCreditCost, EFFORT_MULTIPLIERS, EFFORT_VERIFICATION } from "./discovery/agent-card.js";
+export type { AgentCardOptions, CapabilityQuery, BidEligibilityOptions, BidEligibilityResult, CreditCostOptions } from "./discovery/agent-card.js";
 export { AgentRegistry, RegistryServer } from "./discovery/registry.js";
 
 // Reputation
@@ -50,6 +50,9 @@ export type { ReputationProfile, DomainReputation } from "./reputation/profile.j
 // Settlement
 export { MockSettlementAdapter } from "./settlement/adapter.js";
 export type { SettlementAdapter, EscrowRef, SettlementProofData } from "./settlement/adapter.js";
+export { CreditLedger } from "./settlement/credit-ledger.js";
+export type { TransactionOptions } from "./settlement/credit-ledger.js";
+export { CreditSettlementAdapter } from "./settlement/credit-adapter.js";
 
 // Sub-delegation
 export { SubDelegationManager } from "./delegation/subtask.js";

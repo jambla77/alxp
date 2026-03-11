@@ -12,9 +12,11 @@ import {
   AcceptanceCriteria,
   VerificationMethod,
   Priority,
+  EffortTier,
   AsyncConfig,
 } from "./primitives.js";
 import { SpotCheckConfig } from "./staking.js";
+import { EffortEstimate } from "./exchange.js";
 
 /** Task input — context or data for the task */
 export const TaskInput = z.object({
@@ -66,6 +68,11 @@ export const TaskSpec = z.object({
   stakeRequired: Price.optional(),
   challengeWindow: Duration.optional(),
   spotCheckConfig: SpotCheckConfig.optional(),
+
+  // Exchange layer
+  effortTier: EffortTier.optional(),
+  effortEstimate: EffortEstimate.optional(),
+  creditReward: z.number().nonnegative().optional(),
 
   signature: Signature,
 });
