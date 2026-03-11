@@ -12,6 +12,7 @@ import {
   generateAgentIdentity,
   publicKeyToHex,
   hexToPublicKey,
+  hexToBytes,
 } from "@alxp/reference";
 import type { AgentIdentity } from "@alxp/reference";
 
@@ -38,7 +39,7 @@ export async function loadOrCreateIdentity(endpoint?: string): Promise<AgentIden
     const persisted: PersistedIdentity = JSON.parse(raw);
 
     const publicKey = hexToPublicKey(persisted.publicKeyHex);
-    const privateKey = hexToPublicKey(persisted.privateKeyHex); // same hex->bytes conversion
+    const privateKey = hexToBytes(persisted.privateKeyHex);
 
     return {
       did: persisted.did as AgentIdentity["did"],

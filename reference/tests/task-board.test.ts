@@ -332,8 +332,16 @@ describe("Registry HTTP — Task Board routes", () => {
     const matchData = await matchRes.json() as { tasks: any[]; count: number };
     expect(matchData.count).toBe(1);
 
-    // DELETE /tasks/:id — removes task
-    const deleteRes = await fetch(`${base}/tasks/${spec.id}`, { method: "DELETE" });
+    // DELETE /tasks/:id — requires signature
+    const noAuthRes = await fetch(`${base}/tasks/${spec.id}`, { method: "DELETE" });
+    expect(noAuthRes.status).toBe(401);
+
+    // DELETE /tasks/:id — with valid signature removes task
+    const deleteSig = signString(`delete:${spec.id}`, requester.keyPair.privateKey);
+    const deleteRes = await fetch(`${base}/tasks/${spec.id}`, {
+      method: "DELETE",
+      headers: { "x-alxp-signature": deleteSig },
+    });
     expect(deleteRes.status).toBe(200);
 
     // Confirm removal
@@ -341,7 +349,10 @@ describe("Registry HTTP — Task Board routes", () => {
     expect(afterDelete.status).toBe(404);
 
     // DELETE /tasks/:id — 404 for already removed
-    const deleteAgain = await fetch(`${base}/tasks/${spec.id}`, { method: "DELETE" });
+    const deleteAgain = await fetch(`${base}/tasks/${spec.id}`, {
+      method: "DELETE",
+      headers: { "x-alxp-signature": deleteSig },
+    });
     expect(deleteAgain.status).toBe(404);
   });
 

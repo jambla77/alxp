@@ -58,3 +58,8 @@ export function publicKeyToHex(publicKey: Uint8Array): string {
 export function hexToPublicKey(hex: string): Uint8Array {
   return ed25519.etc.hexToBytes(hex);
 }
+
+/** Decode a hex string to raw bytes (alias for non-key hex data) */
+export function hexToBytes(hex: string): Uint8Array {
+  return ed25519.etc.hexToBytes(hex);
+}

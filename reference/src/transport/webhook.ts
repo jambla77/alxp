@@ -50,6 +50,48 @@ interface WebhookRegistration {
   events: WebhookNotification["type"][];
 }
 
+/** Private/reserved IPv4 ranges that must be blocked for SSRF prevention */
+const BLOCKED_HOSTNAMES = new Set([
+  "169.254.169.254",    // AWS/cloud metadata
+  "metadata.google.internal",
+  "[::1]",
+]);
+
+const PRIVATE_IP_PATTERNS = [
+  /^127\./,             // loopback
+  /^10\./,              // Class A private
+  /^172\.(1[6-9]|2\d|3[01])\./,  // Class B private
+  /^192\.168\./,        // Class C private
+  /^0\./,               // Current network
+  /^169\.254\./,        // Link-local
+];
+
+/** Validate a webhook callback URL for safety */
+function validateCallbackUrl(url: string): void {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new Error("Invalid callback URL");
+  }
+
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+    throw new Error("Callback URL must use http or https");
+  }
+
+  const hostname = parsed.hostname;
+
+  if (BLOCKED_HOSTNAMES.has(hostname)) {
+    throw new Error("Callback URL points to a blocked address");
+  }
+
+  for (const pattern of PRIVATE_IP_PATTERNS) {
+    if (pattern.test(hostname)) {
+      throw new Error("Callback URL must not point to a private/reserved IP address");
+    }
+  }
+}
+
 /**
  * Webhook sender — publishes notifications to registered callbacks.
  */
@@ -58,6 +100,8 @@ export class WebhookPublisher {
 
   /** Register a callback URL for a contract's events */
   register(contractId: string, callbackUrl: string, events?: WebhookNotification["type"][]): void {
+    validateCallbackUrl(callbackUrl);
+
     const existing = this.registrations.get(contractId) ?? [];
     existing.push({
       contractId,
@@ -72,6 +116,9 @@ export class WebhookPublisher {
     this.registrations.delete(contractId);
   }
 
+  /** Delivery failures, exposed for monitoring */
+  readonly failures: Array<{ url: string; contractId: string; error: string; timestamp: string }> = [];
+
   /**
    * Send a notification to all registered callbacks for a contract.
    * Returns the number of callbacks that received the notification.
@@ -85,15 +132,36 @@ export class WebhookPublisher {
       if (!reg.events.includes(notification.type)) continue;
 
       try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 10_000);
+
         const response = await fetch(reg.callbackUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(notification),
+          signal: controller.signal,
+          redirect: "error",
         });
 
-        if (response.ok) sent++;
-      } catch {
-        // Failed to deliver — in production, implement retry logic
+        clearTimeout(timeout);
+
+        if (response.ok) {
+          sent++;
+        } else {
+          this.failures.push({
+            url: reg.callbackUrl,
+            contractId: notification.contractId,
+            error: `HTTP ${response.status}`,
+            timestamp: new Date().toISOString(),
+          });
+        }
+      } catch (err) {
+        this.failures.push({
+          url: reg.callbackUrl,
+          contractId: notification.contractId,
+          error: err instanceof Error ? err.message : "Unknown error",
+          timestamp: new Date().toISOString(),
+        });
       }
     }
 

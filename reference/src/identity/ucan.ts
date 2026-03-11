@@ -11,6 +11,7 @@
  * that follows the UCAN spec: https://ucan.xyz
  */
 
+import { randomBytes } from "node:crypto";
 import { ulid } from "ulid";
 import { signString, verifyString, publicKeyToHex, hexToPublicKey } from "./signing.js";
 import { publicKeyFromDID } from "./did.js";
@@ -115,7 +116,7 @@ export function createUCAN(options: CreateUCANOptions): UCANToken {
     att: capabilities,
     exp: Math.floor(expiration.getTime() / 1000),
     nbf: notBefore ? Math.floor(notBefore.getTime() / 1000) : undefined,
-    nnc: ulid(),
+    nnc: randomBytes(16).toString("base64url"),
     prf: proofs,
     fct: facts,
   };

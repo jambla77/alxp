@@ -2,7 +2,7 @@
 export * from "./types/index.js";
 
 // Identity
-export { generateKeyPair, sign, verify, signString, verifyString, publicKeyToHex, hexToPublicKey } from "./identity/signing.js";
+export { generateKeyPair, sign, verify, signString, verifyString, publicKeyToHex, hexToPublicKey, hexToBytes } from "./identity/signing.js";
 export { generateAgentIdentity, publicKeyFromDID, DIDResolver } from "./identity/did.js";
 export type { AgentIdentity, DIDDocument } from "./identity/did.js";
 export type { KeyPair } from "./identity/signing.js";

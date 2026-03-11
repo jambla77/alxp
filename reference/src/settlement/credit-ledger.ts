@@ -14,6 +14,16 @@ import type {
   CreditTransactionType,
 } from "../types/exchange.js";
 
+/** Maximum credit value — stays safely within Number.MAX_SAFE_INTEGER */
+const MAX_CREDITS = 2 ** 53 - 1;
+
+/** Throws if adding amount would overflow */
+function assertNoOverflow(current: number, amount: number, label: string): void {
+  if (current + amount > MAX_CREDITS) {
+    throw new Error(`${label} would exceed maximum credit limit`);
+  }
+}
+
 /** Options for recording a credit transaction */
 export interface TransactionOptions {
   type: CreditTransactionType;
@@ -74,6 +84,7 @@ export class CreditLedger {
   bootstrap(agentId: string, amount: number, description?: string): CreditTransaction {
     if (amount <= 0) throw new Error("Bootstrap amount must be positive");
     const bal = this.getOrCreate(agentId);
+    assertNoOverflow(bal.available, amount, "Bootstrap");
     bal.available += amount;
     bal.bootstrapped += amount;
     return this.record(agentId, { type: "bootstrap", amount, description });
@@ -93,6 +104,7 @@ export class CreditLedger {
   donate(agentId: string, amount: number, description?: string): CreditTransaction {
     if (amount <= 0) throw new Error("Donation amount must be positive");
     const bal = this.getOrCreate(agentId);
+    assertNoOverflow(bal.available, amount, "Donation");
     bal.available += amount;
     bal.donated += amount;
     return this.record(agentId, { type: "donate", amount, description });
@@ -104,6 +116,7 @@ export class CreditLedger {
   grant(agentId: string, amount: number, description?: string): CreditTransaction {
     if (amount <= 0) throw new Error("Grant amount must be positive");
     const bal = this.getOrCreate(agentId);
+    assertNoOverflow(bal.available, amount, "Grant");
     bal.available += amount;
     return this.record(agentId, { type: "grant", amount, description });
   }
@@ -167,6 +180,7 @@ export class CreditLedger {
 
     // Credit worker
     const workerBal = this.getOrCreate(workerId);
+    assertNoOverflow(workerBal.available, amount, "Release");
     workerBal.available += amount;
     workerBal.earned += amount;
     const workerTx = this.record(workerId, {

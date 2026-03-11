@@ -62,21 +62,38 @@ export class ALXPBridge {
     this.setupHandlers();
   }
 
+  /** Safely extract a string from an unknown value */
+  private str(val: unknown, fallback = ""): string {
+    return typeof val === "string" ? val : fallback;
+  }
+
+  /** Safely extract a finite number from an unknown value */
+  private num(val: unknown, fallback = 0): number {
+    return typeof val === "number" && Number.isFinite(val) ? val : fallback;
+  }
+
   private setupHandlers(): void {
     // Handle incoming bids
     this.server.router.on("BID", async (msg) => {
-      const payload = msg.payload as { type: "BID"; offer: Record<string, unknown> };
-      const offer = payload.offer;
-      const taskId = offer["taskId"] as string;
+      const payload = msg.payload;
+      if (!payload || typeof payload !== "object") return;
+      const offer = (payload as Record<string, unknown>)["offer"];
+      if (!offer || typeof offer !== "object") return;
+      const offerRec = offer as Record<string, unknown>;
+      const taskId = this.str(offerRec["taskId"]);
+      if (!taskId) return;
+
+      const price = offerRec["price"];
+      const priceRec = price && typeof price === "object" ? (price as Record<string, unknown>) : {};
 
       const tracked: TrackedOffer = {
-        offerId: (offer["id"] as string) ?? ulid(),
+        offerId: this.str(offerRec["id"]) || ulid(),
         workerDid: msg.sender,
-        workerEndpoint: (msg.headers?.["reply-endpoint"] as string) ?? "",
-        price: ((offer["price"] as Record<string, unknown>)?.["amount"] as number) ?? 0,
-        currency: ((offer["price"] as Record<string, unknown>)?.["currency"] as string) ?? "USD",
-        confidence: (offer["confidence"] as number) ?? 0,
-        estimatedDuration: offer["estimatedDuration"] as string | undefined,
+        workerEndpoint: this.str(msg.headers?.["reply-endpoint"]),
+        price: this.num(priceRec["amount"]),
+        currency: this.str(priceRec["currency"], "USD"),
+        confidence: this.num(offerRec["confidence"]),
+        estimatedDuration: typeof offerRec["estimatedDuration"] === "string" ? offerRec["estimatedDuration"] : undefined,
       };
 
       // Store the offer
@@ -96,18 +113,25 @@ export class ALXPBridge {
 
     // Handle incoming results
     this.server.router.on("SUBMIT_RESULT", async (msg) => {
-      const payload = msg.payload as { type: "SUBMIT_RESULT"; result: Record<string, unknown> };
-      const result = payload.result;
-      const contractId = result["contractId"] as string;
+      const payload = msg.payload;
+      if (!payload || typeof payload !== "object") return;
+      const result = (payload as Record<string, unknown>)["result"];
+      if (!result || typeof result !== "object") return;
+      const resultRec = result as Record<string, unknown>;
+      const contractId = this.str(resultRec["contractId"]);
+      if (!contractId) return;
 
       // Find the task by contractId
       for (const task of this.state.list()) {
         if (task.awardedTo?.contractId === contractId) {
-          const outputs = (result["outputs"] as Array<Record<string, unknown>> ?? []).map((o) => ({
-            name: (o["name"] as string) ?? "output",
-            mimeType: (o["mimeType"] as string) ?? "text/plain",
-            data: (o["data"] as string) ?? "",
-          }));
+          const rawOutputs = Array.isArray(resultRec["outputs"]) ? resultRec["outputs"] : [];
+          const outputs = rawOutputs
+            .filter((o): o is Record<string, unknown> => o !== null && typeof o === "object")
+            .map((o) => ({
+              name: this.str(o["name"], "output"),
+              mimeType: this.str(o["mimeType"], "text/plain"),
+              data: this.str(o["data"]),
+            }));
 
           this.state.update(task.taskId, {
             status: "submitted",
@@ -118,7 +142,7 @@ export class ALXPBridge {
           const resolver = this.resultResolvers.get(task.taskId);
           if (resolver) {
             this.resultResolvers.delete(task.taskId);
-            resolver(result);
+            resolver(resultRec);
           }
           break;
         }

@@ -73,9 +73,9 @@ export class ALXPServer {
       let message: ProtocolMessage;
       try {
         message = parseMessage(rpcRequest.params);
-      } catch (err) {
+      } catch {
         return c.json(
-          this.rpcError(rpcRequest.id, -32602, `Invalid params: ${err instanceof Error ? err.message : String(err)}`),
+          this.rpcError(rpcRequest.id, -32602, "Invalid params"),
           200,
         );
       }
@@ -103,9 +103,9 @@ export class ALXPServer {
       // Route to handler
       try {
         await this.router.route(message);
-      } catch (err) {
+      } catch {
         return c.json(
-          this.rpcError(rpcRequest.id, -32000, `Handler error: ${err instanceof Error ? err.message : String(err)}`),
+          this.rpcError(rpcRequest.id, -32000, "Internal handler error"),
           200,
         );
       }

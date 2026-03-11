@@ -10,6 +10,7 @@ import type { AgentDescription as AgentDescriptionType, DID } from "../types/ind
 import type { CapabilityDescription as CapabilityDescriptionType } from "../types/index.js";
 import { matchesQuery, type CapabilityQuery } from "./agent-card.js";
 import { verifyString, hexToPublicKey } from "../identity/signing.js";
+import { publicKeyFromDID } from "../identity/did.js";
 import { TaskBoard, verifyTaskSignature, type TaskQuery } from "./task-board.js";
 import { Hono } from "hono";
 import { serve, type ServerType } from "@hono/node-server";
@@ -83,7 +84,31 @@ export class RegistryServer {
     this.setupRoutes();
   }
 
+  /**
+   * Verify a signed deletion request.
+   * The caller must provide X-ALXP-Signature header signing "delete:{resourceId}".
+   */
+  private verifyDeleteAuth(
+    signature: string | undefined,
+    resourceId: string,
+    publicKeyHex: string,
+  ): boolean {
+    if (!signature) return false;
+    try {
+      const pubKey = hexToPublicKey(publicKeyHex);
+      return verifyString(signature, `delete:${resourceId}`, pubKey);
+    } catch {
+      return false;
+    }
+  }
+
   private setupRoutes() {
+    // CORS — restrict to same-origin by default
+    this.app.use("*", async (c, next) => {
+      await next();
+      c.header("X-Content-Type-Options", "nosniff");
+    });
+
     // Well-known agent card endpoint (A2A-style)
     this.app.get("/.well-known/agent.json", (c) => {
       const agents = this.registry.list();
@@ -120,13 +145,21 @@ export class RegistryServer {
       return c.json({ agents: results, count: results.length });
     });
 
-    // Remove agent
+    // Remove agent (requires signature proving DID ownership)
     this.app.delete("/agents/:did", (c) => {
       const did = decodeURIComponent(c.req.param("did")) as DID;
-      const removed = this.registry.unregister(did);
-      if (!removed) {
+
+      const card = this.registry.get(did);
+      if (!card) {
         return c.json({ error: "Agent not found" }, 404);
       }
+
+      const signature = c.req.header("x-alxp-signature");
+      if (!this.verifyDeleteAuth(signature, did, card.publicKey)) {
+        return c.json({ error: "Unauthorized: valid signature required to delete agent" }, 401);
+      }
+
+      this.registry.unregister(did);
       return c.json({ status: "removed", did });
     });
 
@@ -172,13 +205,30 @@ export class RegistryServer {
       return c.json({ tasks, count: tasks.length });
     });
 
-    // Remove a task (requester withdraws)
+    // Remove a task (requires signature from the task requester)
     this.app.delete("/tasks/:id", (c) => {
       const id = c.req.param("id");
-      const removed = this.taskBoard.remove(id);
-      if (!removed) {
+
+      const posted = this.taskBoard.get(id);
+      if (!posted) {
         return c.json({ error: "Task not found" }, 404);
       }
+
+      // Verify the caller is the task requester
+      const signature = c.req.header("x-alxp-signature");
+      const requesterDid = posted.taskSpec.requester as DID;
+      let pubKeyHex: string;
+      try {
+        pubKeyHex = publicKeyFromDID(requesterDid);
+      } catch {
+        return c.json({ error: "Cannot resolve requester key" }, 400);
+      }
+
+      if (!this.verifyDeleteAuth(signature, id, pubKeyHex)) {
+        return c.json({ error: "Unauthorized: valid signature required to delete task" }, 401);
+      }
+
+      this.taskBoard.remove(id);
       return c.json({ status: "removed", taskId: id });
     });
   }

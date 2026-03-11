@@ -34,7 +34,20 @@ import { definition as reviewResultDef, handler as reviewResultHandler } from ".
 
 const REGISTRY_URL = process.env["ALXP_REGISTRY_URL"] ?? "http://localhost:19600";
 
+function validateRegistryUrl(url: string): void {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol === "http:" && parsed.hostname !== "localhost" && parsed.hostname !== "127.0.0.1") {
+      console.error(`WARNING: Registry URL uses plain HTTP for non-localhost host (${parsed.hostname}). Use HTTPS in production to prevent interception.`);
+    }
+  } catch {
+    console.error(`WARNING: Invalid registry URL: ${url}`);
+  }
+}
+
 async function main() {
+  validateRegistryUrl(REGISTRY_URL);
+
   // Initialize state
   const state = new StateStore();
   await state.load();

@@ -69,7 +69,11 @@ export function publicKeyFromDID(did: DID): string {
   if (!did.startsWith("did:key:z")) {
     throw new Error(`Cannot extract public key from non did:key DID: ${did}`);
   }
-  return did.slice("did:key:z".length);
+  const hex = did.slice("did:key:z".length);
+  if (!/^[0-9a-f]{64}$/i.test(hex)) {
+    throw new Error(`Invalid public key in DID: expected 64 hex chars, got "${hex.slice(0, 20)}..."`);
+  }
+  return hex;
 }
 
 /** In-memory DID resolver for testing */
