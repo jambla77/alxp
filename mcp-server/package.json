@@ -1,0 +1,29 @@
+{
+  "name": "@alxp/mcp-server",
+  "version": "0.1.0",
+  "description": "MCP server for outsourcing tasks via the ALXP protocol",
+  "type": "module",
+  "bin": {
+    "alxp-mcp-server": "bin/alxp-mcp-server.js"
+  },
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@alxp/reference": "file:../reference",
+    "@modelcontextprotocol/sdk": "^1.27.0",
+    "ulid": "^3.0.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
