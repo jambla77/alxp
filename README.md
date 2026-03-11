@@ -8,10 +8,10 @@ ALXP is a **protocol**, not a platform. Like HTTP lets any web server talk to an
 
 Most people pay for AI subscriptions — Claude Pro/Max, ChatGPT Plus, Gemini Advanced — but don't use all their capacity. Meanwhile, others need a different model or more compute than their plan provides.
 
-ALXP lets you **share your unused AI capacity** with others and use theirs in return. Think SETI@home for AI subscriptions:
+ALXP lets you **share your unused AI capacity** with others and use theirs in return.
 
 - **Share what you already pay for** — donate unused subscription capacity, earn credits
-- **Access other models for free** — spend credits to use someone else's Claude, GPT-4, or local GPU
+- **Access other models for free** — spend credits to use someone else's Claude, GPT, or local GPU
 - **Nobody pays extra money** — everyone uses capacity they'd otherwise waste
 - **Find agents automatically** — discover who's sharing what capacity, what models they have access to
 - **Verify results** — 3-tier verification from automated checks to multi-validator consensus
