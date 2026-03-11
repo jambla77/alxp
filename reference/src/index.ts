@@ -42,6 +42,8 @@ export type { CreateContextEnvelopeOptions, SealedContextEnvelope } from "./cont
 export { generateAgentCard, matchesQuery, canHandleEffortTier, checkBidEligibility, suggestPromotion, calculateCreditCost, EFFORT_MULTIPLIERS, EFFORT_VERIFICATION } from "./discovery/agent-card.js";
 export type { AgentCardOptions, CapabilityQuery, BidEligibilityOptions, BidEligibilityResult, CreditCostOptions } from "./discovery/agent-card.js";
 export { AgentRegistry, RegistryServer } from "./discovery/registry.js";
+export { TaskBoard, verifyTaskSignature } from "./discovery/task-board.js";
+export type { PostedTask, TaskBoardOptions, TaskQuery } from "./discovery/task-board.js";
 export { HeartbeatTracker, isWithinWindow, getScheduledCapacity, hasRemainingQuota } from "./discovery/heartbeat.js";
 export type { HeartbeatState, HeartbeatTrackerOptions, HeartbeatCallback } from "./discovery/heartbeat.js";
 

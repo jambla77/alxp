@@ -7,8 +7,10 @@
  */
 
 import type { AgentDescription as AgentDescriptionType, DID } from "../types/index.js";
+import type { CapabilityDescription as CapabilityDescriptionType } from "../types/index.js";
 import { matchesQuery, type CapabilityQuery } from "./agent-card.js";
 import { verifyString, hexToPublicKey } from "../identity/signing.js";
+import { TaskBoard, verifyTaskSignature, type TaskQuery } from "./task-board.js";
 import { Hono } from "hono";
 import { serve, type ServerType } from "@hono/node-server";
 
@@ -71,11 +73,13 @@ export class AgentRegistry {
 export class RegistryServer {
   readonly app: Hono;
   readonly registry: AgentRegistry;
+  readonly taskBoard: TaskBoard;
   private server: ServerType | null = null;
 
-  constructor(registry?: AgentRegistry) {
+  constructor(registry?: AgentRegistry, taskBoard?: TaskBoard) {
     this.app = new Hono();
     this.registry = registry ?? new AgentRegistry();
+    this.taskBoard = taskBoard ?? new TaskBoard();
     this.setupRoutes();
   }
 
@@ -124,6 +128,58 @@ export class RegistryServer {
         return c.json({ error: "Agent not found" }, 404);
       }
       return c.json({ status: "removed", did });
+    });
+
+    // ── Task Board Routes ──
+
+    // Post a signed task to the board
+    this.app.post("/tasks", async (c) => {
+      const body = (await c.req.json()) as { taskSpec: any; replyEndpoint: string };
+
+      if (!verifyTaskSignature(body.taskSpec)) {
+        return c.json({ error: "Invalid task signature" }, 401);
+      }
+
+      try {
+        const posted = this.taskBoard.post(body.taskSpec, body.replyEndpoint);
+        return c.json({ status: "posted", taskId: body.taskSpec.id, expiresAt: posted.expiresAt }, 201);
+      } catch (err) {
+        return c.json({ error: err instanceof Error ? err.message : "Failed to post task" }, 400);
+      }
+    });
+
+    // Get a specific posted task
+    this.app.get("/tasks/:id", (c) => {
+      const id = c.req.param("id");
+      const posted = this.taskBoard.get(id);
+      if (!posted) {
+        return c.json({ error: "Task not found" }, 404);
+      }
+      return c.json(posted);
+    });
+
+    // Browse tasks by domain/tags/budget
+    this.app.post("/tasks/query", async (c) => {
+      const query = (await c.req.json()) as TaskQuery;
+      const tasks = this.taskBoard.query(query);
+      return c.json({ tasks, count: tasks.length });
+    });
+
+    // Find tasks for a worker based on capabilities
+    this.app.post("/tasks/match", async (c) => {
+      const body = (await c.req.json()) as { capabilities: CapabilityDescriptionType[] };
+      const tasks = this.taskBoard.matchForWorker(body.capabilities);
+      return c.json({ tasks, count: tasks.length });
+    });
+
+    // Remove a task (requester withdraws)
+    this.app.delete("/tasks/:id", (c) => {
+      const id = c.req.param("id");
+      const removed = this.taskBoard.remove(id);
+      if (!removed) {
+        return c.json({ error: "Task not found" }, 404);
+      }
+      return c.json({ status: "removed", taskId: id });
     });
   }
 

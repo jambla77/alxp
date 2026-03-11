@@ -59,6 +59,10 @@ export class TaskDispatcher {
       const pending = this.pendingByTask.get(offer.taskId);
       if (!pending) return;
 
+      // In task-board mode, the worker endpoint comes from the bid's reply-endpoint header
+      const workerEndpoint = pending.workerEndpoint || msg.headers?.["reply-endpoint"] || "";
+      const workerDid = pending.workerDid || msg.sender;
+
       const contractId = pending.contractId;
       const contract = {
         id: contractId,
@@ -89,10 +93,10 @@ export class TaskDispatcher {
       }
 
       await this.client.send(
-        pending.workerEndpoint,
+        workerEndpoint,
         { type: "AWARD", contract } satisfies Award,
         {
-          recipient: pending.workerDid,
+          recipient: workerDid,
           headers: {
             "reply-endpoint": `http://${this.config.localIp}:${this.config.requesterPort}`,
             "task-objective": pending.definition.objective,
@@ -281,6 +285,94 @@ export class TaskDispatcher {
         });
       });
     });
+  }
+
+  /** Post tasks to the registry's task board (pull-based mode). */
+  async postToBoard(tasks: TaskDefinition[]): Promise<void> {
+    const replyEndpoint = `http://${this.config.localIp}:${this.config.requesterPort}`;
+
+    for (const task of tasks) {
+      const files = await collectContext(this.config.projectRoot, task);
+      const taskId = ulid();
+      const contractId = ulid();
+      const startTime = Date.now();
+
+      const taskSpec = {
+        id: taskId,
+        requester: this.identity.did,
+        created: new Date().toISOString(),
+        objective: task.objective,
+        domain: "coding",
+        inputs: files.map((f) => ({
+          name: f.path,
+          mimeType: "text/plain",
+          data: f.content,
+        })),
+        expectedOutput: {
+          mimeType: "text/plain",
+          description: "Modified source files",
+        },
+        privacyClass: "public" as const,
+        delegationPolicy: { allowSubDelegation: false, maxDepth: 0, requireApproval: false },
+        acceptanceCriteria: [{ type: "schema" as const, schema: { type: "object" } }],
+        verificationMethod: "optimistic" as const,
+        tags: task.tags ?? [],
+        signature: signString(taskId, this.identity.keyPair.privateKey),
+      };
+
+      // Register as pending so we can handle BID → AWARD → RESULT
+      const pending: PendingTask = {
+        taskId,
+        contractId,
+        definition: task,
+        files,
+        workerEndpoint: "", // filled when bid arrives
+        workerDid: "" as DID, // filled when bid arrives
+        startTime,
+        resolve: () => {},
+        timer: setTimeout(() => {}, this.config.taskTimeoutMs),
+      };
+      this.pendingByTask.set(taskId, pending);
+
+      const res = await fetch(`${this.config.registryUrl}/tasks`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ taskSpec, replyEndpoint }),
+      });
+
+      if (!res.ok) {
+        const body = await res.text();
+        throw new Error(`Failed to post task to board: ${res.status} ${body}`);
+      }
+
+      console.log(`  Posted to board: "${task.objective}" (${taskId.substring(0, 8)})`);
+    }
+  }
+
+  /** Wait for all pending tasks to complete or timeout. */
+  async waitForResults(): Promise<DispatchResult[]> {
+    const promises: Promise<DispatchResult>[] = [];
+
+    for (const pending of this.pendingByTask.values()) {
+      // Replace the dummy resolve/timer with a real promise
+      const p = new Promise<DispatchResult>((resolve) => {
+        clearTimeout(pending.timer);
+        pending.resolve = resolve;
+        pending.timer = setTimeout(() => {
+          this.pendingByTask.delete(pending.taskId);
+          resolve({
+            taskId: pending.taskId,
+            objective: pending.definition.objective,
+            status: "timeout",
+            error: `Task timed out after ${this.config.taskTimeoutMs}ms`,
+            durationMs: Date.now() - pending.startTime,
+          });
+        }, this.config.taskTimeoutMs);
+      });
+      promises.push(p);
+    }
+
+    return Promise.all(promises);
   }
 
   async stop(): Promise<void> {

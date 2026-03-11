@@ -59,6 +59,7 @@ async function main() {
   console.log(`  Capacity:  ${config.solver} (${config.subscriptionTier} tier, sharing ${config.capacitySharePercent}%)`);
   console.log(`  Tasks:     ${tasks.length}`);
   console.log(`  Registry:  ${config.registryUrl}`);
+  console.log(`  Mode:      ${config.taskBoard ? "task-board (pull)" : "direct (push)"}`);
   console.log();
 
   // 1. Start registry
@@ -99,14 +100,29 @@ async function main() {
   dispatcher = new TaskDispatcher(config);
   await dispatcher.start();
 
-  const workerCount = await dispatcher.discoverWorkers();
-  if (workerCount === 0) {
-    console.error("No workers found! (registration may have failed)");
-    await cleanup();
-    return;
-  }
+  let results: Awaited<ReturnType<typeof dispatcher.dispatch>>;
 
-  const results = await dispatcher.dispatch(tasks);
+  if (config.taskBoard) {
+    // Pull-based: requester posts to board, worker polls and bids
+    console.log("Using task-board mode (pull-based discovery)\n");
+    await dispatcher.postToBoard(tasks);
+
+    // Start worker polling the board
+    await worker.pollBoard();
+
+    // Wait for results
+    results = await dispatcher.waitForResults();
+  } else {
+    // Push-based: requester queries registry and pushes tasks directly
+    const workerCount = await dispatcher.discoverWorkers();
+    if (workerCount === 0) {
+      console.error("No workers found! (registration may have failed)");
+      await cleanup();
+      return;
+    }
+
+    results = await dispatcher.dispatch(tasks);
+  }
 
   // 4. Report results
   console.log("\n" + "═".repeat(60));

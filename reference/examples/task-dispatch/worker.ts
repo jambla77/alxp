@@ -33,6 +33,7 @@ export class CodingWorker {
   private server!: ALXPServer;
   private client!: ALXPClient;
   private tasksHandled = 0;
+  private pollTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(private config: CodingWorkerConfig) {}
 
@@ -206,7 +207,80 @@ export class CodingWorker {
     console.log(`Worker registered — sharing capacity via ${this.config.registryUrl}`);
   }
 
+  /** Poll the registry task board for matching tasks (pull-based mode). */
+  async pollBoard(): Promise<void> {
+    const alreadyBid = new Set<string>();
+    const pollInterval = 2000; // 2 seconds
+
+    const poll = async () => {
+      try {
+        const res = await fetch(`${this.config.registryUrl}/tasks/query`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ domain: "coding" }),
+        });
+
+        if (!res.ok) return;
+
+        const data = (await res.json()) as { tasks: any[]; count: number };
+
+        for (const posted of data.tasks) {
+          const taskSpec = posted.taskSpec;
+          if (alreadyBid.has(taskSpec.id)) continue;
+          alreadyBid.add(taskSpec.id);
+
+          console.log(`  Found task on board: "${taskSpec.objective}" (${taskSpec.id.substring(0, 8)})`);
+
+          const offerId = ulid();
+          const offer = {
+            id: offerId,
+            taskId: taskSpec.id,
+            worker: this.identity.did,
+            created: new Date().toISOString(),
+            expires: new Date(Date.now() + 3600000).toISOString(),
+            price: { amount: 0, currency: "USD", model: "fixed" as const },
+            estimatedDuration: "PT5M",
+            confidence: 0.9,
+            requiredContext: [],
+            relevantReputation: [],
+            relevantCredentials: [],
+            signature: signString(offerId, this.identity.keyPair.privateKey),
+          };
+
+          // Send BID directly to the requester's replyEndpoint (peer-to-peer)
+          await this.client.send(
+            posted.replyEndpoint,
+            { type: "BID", offer } satisfies Bid,
+            {
+              recipient: taskSpec.requester,
+              headers: {
+                "reply-endpoint": this.config.endpoint,
+              },
+            },
+          );
+
+          console.log(`  Bid sent for: "${taskSpec.objective}"`);
+        }
+      } catch {
+        // Silently retry on next poll
+      }
+    };
+
+    // Run initial poll, then set up interval
+    await poll();
+    this.pollTimer = setInterval(poll, pollInterval);
+  }
+
+  /** Stop polling the task board */
+  stopPolling(): void {
+    if (this.pollTimer) {
+      clearInterval(this.pollTimer);
+      this.pollTimer = null;
+    }
+  }
+
   async stop(): Promise<void> {
+    this.stopPolling();
     await this.server.close();
   }
 

@@ -30,6 +30,9 @@ export interface DispatchConfig {
   subscriptionTier: string;
   capacitySharePercent: number;
 
+  // Task board (pull-based discovery)
+  taskBoard: boolean;
+
   // Timeouts
   taskTimeoutMs: number;
 }
@@ -102,6 +105,8 @@ export function parseConfig(argv: string[] = process.argv.slice(2)): DispatchCon
     // Capacity sharing — what percentage of your subscription to share
     subscriptionTier: args.get("subscription-tier") ?? (solver === "claude" ? "pro" : solver === "openai" ? "pro" : "local-gpu"),
     capacitySharePercent: parseInt(args.get("capacity-share") ?? "50", 10),
+
+    taskBoard: args.has("task-board"),
 
     taskTimeoutMs: parseInt(args.get("task-timeout") ?? "120000", 10),
   };
