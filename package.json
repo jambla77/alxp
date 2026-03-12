@@ -1,4 +1,4 @@
 {
   "private": true,
-  "workspaces": ["reference", "mcp-server"]
+  "workspaces": ["reference", "mcp-server", "cli"]
 }

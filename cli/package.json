@@ -1,0 +1,27 @@
+{
+  "name": "@alxp/cli",
+  "version": "0.1.0",
+  "description": "CLI for the ALXP protocol — share AI capacity, dispatch coding tasks",
+  "type": "module",
+  "bin": {
+    "alxp": "./bin/alxp.js"
+  },
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch"
+  },
+  "dependencies": {
+    "@alxp/reference": "file:../reference",
+    "commander": "^13.1.0",
+    "ulid": "^3.0.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
