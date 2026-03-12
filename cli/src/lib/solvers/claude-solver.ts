@@ -20,7 +20,15 @@ export class ClaudeSolver implements TaskSolver {
   }
 
   async solve(task: CodingTask): Promise<CodingResult> {
-    const { default: Anthropic } = await import("@anthropic-ai/sdk");
+    // Dynamic import — only loads @anthropic-ai/sdk when actually used
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const Anthropic = (await import("@anthropic-ai/sdk" as string)).default as new () => {
+      messages: {
+        create(opts: Record<string, unknown>): Promise<{
+          content: Array<{ type: string; text?: string }>;
+        }>;
+      };
+    };
     const client = new Anthropic();
 
     const filesContent = this.formatFiles(task.files);
@@ -50,8 +58,8 @@ Return the modified files as JSON.`;
       messages: [{ role: "user", content: userPrompt }],
     });
 
-    const textBlock = response.content.find((b) => b.type === "text");
-    if (!textBlock || textBlock.type !== "text") {
+    const textBlock = response.content.find((b: { type: string }) => b.type === "text");
+    if (!textBlock || textBlock.type !== "text" || !textBlock.text) {
       throw new Error("No text response from Claude");
     }
 
@@ -69,7 +77,7 @@ Return the modified files as JSON.`;
   private parseResponse(content: string): CodingResult {
     let jsonStr = content.trim();
     const fenceMatch = jsonStr.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
-    if (fenceMatch) {
+    if (fenceMatch?.[1]) {
       jsonStr = fenceMatch[1].trim();
     }
 

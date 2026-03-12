@@ -174,10 +174,12 @@ export class TaskDispatcher {
     if (!res.ok) throw new Error(`Registry query failed: ${res.status}`);
 
     const data = (await res.json()) as { agents: AgentDescription[]; count: number };
-    this.workers = data.agents.map((a) => ({
-      did: a.id as DID,
-      endpoint: a.endpoints[0].url,
-    }));
+    this.workers = data.agents
+      .filter((a) => a.endpoints.length > 0)
+      .map((a) => ({
+        did: a.id as DID,
+        endpoint: a.endpoints[0]!.url,
+      }));
 
     return this.workers.length;
   }

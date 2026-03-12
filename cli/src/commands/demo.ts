@@ -152,8 +152,8 @@ export async function runDemo(): Promise<void> {
   heartbeats.recordHeartbeat(aliceHb);
   heartbeats.recordHeartbeat(bobHb);
 
-  console.log(`   Alice: ${hasRemainingCapacity(heartbeats.getState(alice.did)) ? "has" : "no"} remaining capacity`);
-  console.log(`   Bob:   ${hasRemainingCapacity(heartbeats.getState(bob.did)) ? "has" : "no"} remaining capacity\n`);
+  console.log(`   Alice: ${hasRemainingCapacity(heartbeats.getState(alice.did) ?? undefined) ? "has" : "no"} remaining capacity`);
+  console.log(`   Bob:   ${hasRemainingCapacity(heartbeats.getState(bob.did) ?? undefined) ? "has" : "no"} remaining capacity\n`);
 
   // 3. Donate capacity → earn credits
   console.log("3. Donating unused capacity...\n");

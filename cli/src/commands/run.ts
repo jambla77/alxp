@@ -6,7 +6,6 @@
 
 import { readFile } from "fs/promises";
 import { join, resolve } from "path";
-import { networkInterfaces } from "os";
 import { RegistryServer } from "@alxp/reference";
 import { CodingWorker } from "../lib/worker.js";
 import { TaskDispatcher } from "../lib/requester.js";
@@ -26,18 +25,6 @@ export interface RunOptions {
   timeout?: string;
   subscriptionTier?: string;
   capacityShare?: string;
-}
-
-function detectLocalIp(): string {
-  const interfaces = networkInterfaces();
-  for (const name of Object.keys(interfaces)) {
-    for (const iface of interfaces[name] ?? []) {
-      if (iface.family === "IPv4" && !iface.internal) {
-        return iface.address;
-      }
-    }
-  }
-  return "127.0.0.1";
 }
 
 export async function runTask(objective: string, opts: RunOptions): Promise<void> {

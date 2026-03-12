@@ -89,7 +89,7 @@ Return the modified files as JSON.`;
   private parseResponse(content: string): CodingResult {
     let jsonStr = content.trim();
     const fenceMatch = jsonStr.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
-    if (fenceMatch) {
+    if (fenceMatch?.[1]) {
       jsonStr = fenceMatch[1].trim();
     }
 
