@@ -4,6 +4,7 @@ import type { DID } from "../types/index.js";
 
 /** Payload type to JSON-RPC method mapping */
 const TYPE_TO_METHOD: Record<MessagePayload["type"], string> = {
+  // Core lifecycle
   ANNOUNCE_TASK: "alxp.announceTask",
   BID: "alxp.bid",
   AWARD: "alxp.award",
@@ -12,8 +13,26 @@ const TYPE_TO_METHOD: Record<MessagePayload["type"], string> = {
   SETTLE: "alxp.settle",
   CHALLENGE_RESULT: "alxp.challengeResult",
   VALIDATOR_ASSESS: "alxp.validatorAssess",
+  // Exchange
   HEARTBEAT: "alxp.heartbeat",
   METERING_UPDATE: "alxp.meteringUpdate",
+  // Compensation
+  COMP_ALLOCATE: "alxp.compAllocate",
+  COMP_VEST: "alxp.compVest",
+  COMP_FORFEIT: "alxp.compForfeit",
+  COMP_USAGE_REPORT: "alxp.compUsageReport",
+  // Employer
+  BUDGET_CREATE: "alxp.budgetCreate",
+  BUDGET_ALLOCATE: "alxp.budgetAllocate",
+  BUDGET_WARNING: "alxp.budgetWarning",
+  ORG_USAGE_REPORT: "alxp.orgUsageReport",
+  // SLA
+  SLA_DECLARE: "alxp.slaDeclare",
+  SLA_REPORT: "alxp.slaReport",
+  // Accounting
+  VALUATION_RECORD: "alxp.valuationRecord",
+  TAX_EVENT: "alxp.taxEvent",
+  REPORT_GENERATED: "alxp.reportGenerated",
 };
 
 /** JSON-RPC response */

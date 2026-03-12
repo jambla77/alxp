@@ -11,4 +11,8 @@ export * from "./staking.js";
 export * from "./consensus.js";
 export * from "./merkle.js";
 export * from "./exchange.js";
+export * from "./compensation.js";
+export * from "./employer.js";
+export * from "./sla.js";
+export * from "./accounting.js";
 export * from "./message.js";

@@ -16,6 +16,7 @@ ALXP lets you **share your unused AI capacity** with others and use theirs in re
 - **Find agents automatically** — discover who's sharing what capacity, what models they have access to
 - **Verify results** — 3-tier verification from automated checks to multi-validator consensus
 - **Build trust** — portable reputation across interactions
+- **Compute as compensation** — organizations can allocate compute credits as employee compensation with vesting, portability, and SLA guarantees
 
 ### What you can do with it
 
@@ -24,6 +25,7 @@ ALXP lets you **share your unused AI capacity** with others and use theirs in re
 - **Outsource coding tasks** — send files from your project to AI workers on your LAN or the internet, get modified code back as git branches
 - **Distribute compute** — split large tasks across multiple agents running on different machines
 - **Verify AI output** — 3-tier verification from automated checks to economic staking to multi-validator consensus
+- **Compensate with compute** — grant AI compute credits as part of salary, bonus, or signing packages with vesting schedules that mirror equity compensation
 
 ### Benefits over ad-hoc solutions
 
@@ -85,8 +87,8 @@ npm test
 ```
 
 ```
- ✓ 24 test files passed
- ✓ 347 tests passed
+ ✓ 29 test files passed
+ ✓ 451 tests passed
 ```
 
 ### Try the task dispatch pipeline
@@ -195,6 +197,12 @@ See the full [Task Dispatch Guide](reference/examples/task-dispatch/GUIDE.md) fo
 │  Application Layer                              │
 │  (task dispatch, coding agents, marketplaces)   │
 ├─────────────────────────────────────────────────┤
+│  Compensation    │  Employer     │  SLA         │
+│  (vesting)       │  (org budget) │  (capacity)  │
+├──────────────────┤               ├──────────────┤
+│  Accounting      │               │              │
+│  (valuation/tax) │               │              │
+├─────────────────────────────────────────────────┤
 │  Verification    │  Reputation   │  Settlement  │
 │  (3-tier)        │  (receipts)   │  (escrow)    │
 ├─────────────────────────────────────────────────┤
@@ -219,6 +227,11 @@ See the full [Task Dispatch Guide](reference/examples/task-dispatch/GUIDE.md) fo
 | **AgentDescription** | The "business card" — capabilities, trust tier, endpoints |
 | **ContextEnvelope** | Encrypted payload — X25519 key exchange + AES-256-GCM |
 | **DisputeRecord** | Conflict resolution — evidence, arbitration, resolution |
+| **ComputeAllocation** | Compensation grant — credits with vesting, operational/economic constraints |
+| **CompensationPackage** | Complete view — all active allocations, aggregated totals, fiat valuation |
+| **Organization** | Employer entity — budget, capacity sources, policies, member roster |
+| **SLADefinition** | Service commitment — capacity utilization targets, periodic reporting |
+| **ValuationRecord** | Credit pricing — fiat valuation with transparent audit trail |
 | **ProtocolMessage** | Signed envelope — wraps all of the above for transport |
 
 ### Task Lifecycle (19 states)
@@ -237,6 +250,18 @@ VALIDATING → ACCEPTED → PAYMENT_PENDING → SETTLED
 2. **Economic** — Optimistic acceptance with staking and challenge windows (spot checks)
 3. **Consensus** — k-of-n independent validators vote on result quality
 
+### Compute as Compensation
+
+ALXP supports using AI compute credits as a formal component of employee compensation — like equity, but for inference capacity.
+
+- **Allocation types** — salary-compute, bonus-compute, signing-compute, retention-compute, performance-compute, project-compute
+- **Vesting schedules** — immediate, cliff, linear, back-loaded, milestone (mirrors equity comp structures)
+- **Constraint separation** — *operational* constraints (security, compliance) persist during employment; *economic* constraints (provider lock-in, domain restriction) drop at vesting to prevent compute comp from becoming company scrip
+- **Portability guarantee** — vested credits owned by a former employee have zero constraints and are indistinguishable from credits earned any other way
+- **Organizational management** — flat employer model (org + individual, optional `budgetGroup` tag), capacity source tracking, UCAN delegation for authorization
+- **SLA guarantees** — periodic capacity utilization targets ("could the employee use 95% of their credits during Q1?"), not real-time uptime
+- **Accounting** — fiat valuation records, tax event generation, W-2/1099 export shapes, cost center attribution
+
 ## Project Structure
 
 ```
@@ -254,7 +279,7 @@ alxp/
 │
 ├── reference/                     # TypeScript reference implementation
 │   ├── src/
-│   │   ├── types/                 # 12 Zod schemas for all core objects
+│   │   ├── types/                 # 18 Zod schema files for all protocol objects
 │   │   ├── identity/              # Ed25519 signing, DIDs, UCAN delegation
 │   │   ├── messages/              # Envelope, canonicalization, validation
 │   │   ├── transport/             # JSON-RPC 2.0 server + client (Hono)
@@ -266,7 +291,7 @@ alxp/
 │   │   ├── settlement/            # Escrow adapter interface
 │   │   └── delegation/            # UCAN-based sub-delegation
 │   │
-│   ├── tests/                     # 347 tests across 24 files
+│   ├── tests/                     # 451 tests across 29 files
 │   │
 │   └── examples/
 │       ├── simple-requester/      # Minimal requester agent
@@ -303,17 +328,26 @@ alxp/
 
 ## Specification
 
-The full protocol is specified in 9 documents under [`spec/`](spec/):
+The protocol is specified in 9 documents under [`spec/`](spec/), with 4 additional specs in draft for the compensation layer:
 
-- [Object Model](spec/object-model.md) — all 12 core types, primitives, relationships
+**Core protocol:**
+
+- [Object Model](spec/object-model.md) — all core types, primitives, relationships
 - [State Machine](spec/state-machine.md) — 19 states, 32 transitions, guard conditions
-- [Messages](spec/messages.md) — 8 message types, JSON-RPC transport binding
+- [Messages](spec/messages.md) — message types, JSON-RPC transport binding
 - [Identity](spec/identity.md) — DIDs, Ed25519 signing, X25519 encryption, UCAN delegation
 - [Discovery](spec/discovery.md) — agent cards, capability matching, capacity-based queries
 - [Verification](spec/verification.md) — 3-tier verification, Merkle provenance trees
 - [Reputation](spec/reputation.md) — work receipt scoring, settlement, dispute impact
 - [Exchange](spec/exchange.md) — capacity sharing network, credit economy, effort levels
 - [Threat Model](spec/threat-model.md) — 6 threat categories, mitigations, trust tiers
+
+**Compensation layer** (Zod schemas implemented, spec docs in draft):
+
+- **Compensation** — compute allocations, vesting schedules, operational/economic constraint split
+- **Employer Model** — flat org structure, capacity sources, budgets, UCAN delegation, policies
+- **SLA** — periodic capacity utilization guarantees, compliance reporting, remediation
+- **Accounting** — fiat valuation, tax events, cost center records, W-2/1099 export shapes
 
 ## License
 

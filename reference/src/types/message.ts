@@ -9,7 +9,17 @@ import { WorkReceipt } from "./receipt.js";
 import { DisputeRecord } from "./dispute.js";
 import { Challenge } from "./staking.js";
 import { ValidatorAssessment } from "./consensus.js";
-import { MeteringReport, QuotaRemaining, CapacitySnapshot } from "./exchange.js";
+import { MeteringReport, QuotaRemaining, CapacitySnapshot, SubscriptionProvider } from "./exchange.js";
+import {
+  ComputeAllocation,
+  CompensationPeriod,
+  FiatValuation,
+  OperationalConstraints,
+  EconomicConstraints,
+} from "./compensation.js";
+import { OrgBudget } from "./employer.js";
+import { SLADefinition, SLAReport } from "./sla.js";
+import { ValuationRecord, TaxEvent, ReportType } from "./accounting.js";
 
 /** Settlement proof */
 export const SettlementProof = z.object({
@@ -78,6 +88,187 @@ export const ValidatorAssess = z.object({
 });
 export type ValidatorAssess = z.infer<typeof ValidatorAssess>;
 
+// ── Compensation Layer Messages ──
+
+/** Employer grants a compute allocation to an employee */
+export const CompAllocate = z.object({
+  type: z.literal("COMP_ALLOCATE"),
+  allocation: ComputeAllocation,
+});
+export type CompAllocate = z.infer<typeof CompAllocate>;
+
+/** Vesting event — credits move from unvested to vested */
+export const CompVest = z.object({
+  type: z.literal("COMP_VEST"),
+  allocationId: ULID,
+  employee: DID,
+  amountVested: z.number().nonnegative(),
+  totalVestedAfter: z.number().nonnegative(),
+  vestingEvent: ISO8601,
+  nextVestingEvent: ISO8601.optional(),
+});
+export type CompVest = z.infer<typeof CompVest>;
+
+/** Unvested credits forfeited */
+export const CompForfeit = z.object({
+  type: z.literal("COMP_FORFEIT"),
+  allocationId: ULID,
+  employee: DID,
+  amountForfeited: z.number().nonnegative(),
+  reason: z.enum(["termination", "expiration", "policy-change", "voluntary"]),
+  effectiveDate: ISO8601,
+});
+export type CompForfeit = z.infer<typeof CompForfeit>;
+
+/** Periodic compute usage report against compensation allocations */
+export const CompUsageReport = z.object({
+  type: z.literal("COMP_USAGE_REPORT"),
+  employee: DID,
+  employer: DID,
+  period: CompensationPeriod,
+  allocations: z.array(
+    z.object({
+      allocationId: ULID,
+      creditsUsed: z.number().nonnegative(),
+      creditsRemaining: z.number().nonnegative(),
+      topDomains: z.array(z.object({ domain: z.string(), credits: z.number().nonnegative() })),
+      topProviders: z.array(z.object({ provider: z.string(), credits: z.number().nonnegative() })),
+    }),
+  ),
+  totalUsed: z.number().nonnegative(),
+  totalRemaining: z.number().nonnegative(),
+  timestamp: ISO8601,
+  signature: Signature,
+});
+export type CompUsageReport = z.infer<typeof CompUsageReport>;
+
+// ── Employer Model Messages ──
+
+/** Organization creates or updates a budget */
+export const BudgetCreate = z.object({
+  type: z.literal("BUDGET_CREATE"),
+  budget: OrgBudget,
+});
+export type BudgetCreate = z.infer<typeof BudgetCreate>;
+
+/** Distribute credits from org budget to an individual */
+export const BudgetAllocate = z.object({
+  type: z.literal("BUDGET_ALLOCATE"),
+  fromBudget: ULID,
+  toEmployee: DID,
+  amount: z.number().nonnegative(),
+  budgetGroup: z.string().optional(),
+  operationalConstraints: OperationalConstraints.optional(),
+  economicConstraints: EconomicConstraints.optional(),
+  approver: DID,
+  delegationProof: z.string().min(1),
+});
+export type BudgetAllocate = z.infer<typeof BudgetAllocate>;
+
+/** Advisory: budget threshold reached */
+export const BudgetWarning = z.object({
+  type: z.literal("BUDGET_WARNING"),
+  budgetId: ULID,
+  warningType: z.enum(["threshold-reached", "over-allocated", "expiring-soon", "utilization-low"]),
+  threshold: z.number().min(0).max(1),
+  currentUsage: z.number().nonnegative(),
+  totalBudget: z.number().nonnegative(),
+  message: z.string(),
+  timestamp: ISO8601,
+});
+export type BudgetWarning = z.infer<typeof BudgetWarning>;
+
+/** Aggregated organizational usage report */
+export const OrgUsageReport = z.object({
+  type: z.literal("ORG_USAGE_REPORT"),
+  orgId: DID,
+  period: CompensationPeriod,
+  summary: z.object({
+    totalBudget: z.number().nonnegative(),
+    totalAllocated: z.number().nonnegative(),
+    totalConsumed: z.number().nonnegative(),
+    utilizationRate: z.number().min(0).max(1),
+    memberCount: z.number().int().nonnegative(),
+    avgPerMember: z.number().nonnegative(),
+  }),
+  byBudgetGroup: z.array(
+    z.object({
+      group: z.string(),
+      allocated: z.number().nonnegative(),
+      consumed: z.number().nonnegative(),
+      utilizationRate: z.number().min(0).max(1),
+      headcount: z.number().int().nonnegative(),
+    }),
+  ),
+  byProvider: z.array(
+    z.object({
+      provider: SubscriptionProvider,
+      creditsConsumed: z.number().nonnegative(),
+      estimatedCost: FiatValuation.optional(),
+    }),
+  ),
+  topConsumers: z.array(
+    z.object({
+      employeeDid: DID,
+      creditsUsed: z.number().nonnegative(),
+      topDomains: z.array(z.string()),
+    }),
+  ),
+  timestamp: ISO8601,
+  signature: Signature,
+});
+export type OrgUsageReport = z.infer<typeof OrgUsageReport>;
+
+// ── SLA Messages ──
+
+/** Agent or organization publishes SLA commitments */
+export const SlaDeclare = z.object({
+  type: z.literal("SLA_DECLARE"),
+  sla: SLADefinition,
+});
+export type SlaDeclare = z.infer<typeof SlaDeclare>;
+
+/** Periodic SLA compliance report */
+export const SlaReportMsg = z.object({
+  type: z.literal("SLA_REPORT"),
+  report: SLAReport,
+});
+export type SlaReportMsg = z.infer<typeof SlaReportMsg>;
+
+// ── Accounting Messages ──
+
+/** New valuation computed */
+export const ValuationRecordMsg = z.object({
+  type: z.literal("VALUATION_RECORD"),
+  record: ValuationRecord,
+});
+export type ValuationRecordMsg = z.infer<typeof ValuationRecordMsg>;
+
+/** Taxable event occurred */
+export const TaxEventMsg = z.object({
+  type: z.literal("TAX_EVENT"),
+  event: TaxEvent,
+});
+export type TaxEventMsg = z.infer<typeof TaxEventMsg>;
+
+/** Compensation report generated */
+export const ReportGenerated = z.object({
+  type: z.literal("REPORT_GENERATED"),
+  reportId: ULID,
+  reportType: ReportType,
+  period: CompensationPeriod,
+  summary: z.object({
+    totalCompGranted: z.number().nonnegative(),
+    totalCompVested: z.number().nonnegative(),
+    totalCompUsed: z.number().nonnegative(),
+    totalFiatValue: FiatValuation,
+    totalForfeited: z.number().nonnegative(),
+    netTaxableValue: FiatValuation,
+  }),
+  downloadUrl: z.string().url().optional(),
+});
+export type ReportGenerated = z.infer<typeof ReportGenerated>;
+
 // ── Exchange Layer Messages ──
 
 /** Agent heartbeat — liveness and capacity signal */
@@ -102,6 +293,7 @@ export type MeteringUpdate = z.infer<typeof MeteringUpdate>;
 
 /** Discriminated union of all message payloads */
 export const MessagePayload = z.discriminatedUnion("type", [
+  // Core lifecycle
   AnnounceTask,
   Bid,
   Award,
@@ -110,8 +302,26 @@ export const MessagePayload = z.discriminatedUnion("type", [
   Settle,
   ChallengeResult,
   ValidatorAssess,
+  // Exchange
   Heartbeat,
   MeteringUpdate,
+  // Compensation
+  CompAllocate,
+  CompVest,
+  CompForfeit,
+  CompUsageReport,
+  // Employer
+  BudgetCreate,
+  BudgetAllocate,
+  BudgetWarning,
+  OrgUsageReport,
+  // SLA
+  SlaDeclare,
+  SlaReportMsg,
+  // Accounting
+  ValuationRecordMsg,
+  TaxEventMsg,
+  ReportGenerated,
 ]);
 export type MessagePayload = z.infer<typeof MessagePayload>;
 

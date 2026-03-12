@@ -100,6 +100,12 @@ export const CreditTransactionType = z.enum([
   "grant",
   "bonus",
   "slash",
+  // Compensation-specific (see compensation.md)
+  "comp-grant",
+  "comp-vest",
+  "comp-forfeit",
+  "comp-clawback",
+  "comp-expire",
 ]);
 export type CreditTransactionType = z.infer<typeof CreditTransactionType>;
 
