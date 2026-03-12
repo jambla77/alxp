@@ -5,7 +5,7 @@
  */
 
 import { readFile } from "fs/promises";
-import { join } from "path";
+import { join, resolve } from "path";
 import { networkInterfaces } from "os";
 import { RegistryServer } from "@alxp/reference";
 import { CodingWorker } from "../lib/worker.js";
@@ -41,7 +41,7 @@ function detectLocalIp(): string {
 }
 
 export async function runTask(objective: string, opts: RunOptions): Promise<void> {
-  const projectRoot = opts.projectRoot ?? process.cwd();
+  const projectRoot = resolve(opts.projectRoot ?? process.cwd());
   const registryPort = parseInt(opts.registryPort ?? "19600", 10);
   const workerPort = parseInt(opts.workerPort ?? "19700", 10);
   const requesterPort = workerPort + 100; // 19800

@@ -202,7 +202,7 @@ node bin/alxp.js demo
 ```
 alxp/
 ├── cli/                           # CLI tool (@alxp/cli)
-├── spec/                          # Protocol specification (9 documents)
+├── spec/                          # Protocol specification (13 documents)
 ├── reference/                     # TypeScript reference implementation
 │   ├── src/
 │   │   ├── types/                 # 18 Zod schema files for all protocol objects
@@ -236,7 +236,9 @@ alxp/
 
 ## Specification
 
-The protocol is specified in 9 documents under [`spec/`](spec/):
+The protocol is specified in 13 documents under [`spec/`](spec/):
+
+**Core protocol:**
 
 - [Object Model](spec/object-model.md) — all core types, primitives, relationships
 - [State Machine](spec/state-machine.md) — 19 states, 32 transitions, guard conditions
@@ -247,6 +249,13 @@ The protocol is specified in 9 documents under [`spec/`](spec/):
 - [Reputation](spec/reputation.md) — work receipt scoring, settlement, dispute impact
 - [Exchange](spec/exchange.md) — capacity sharing network, credit economy, effort levels
 - [Threat Model](spec/threat-model.md) — 6 threat categories, mitigations, trust tiers
+
+**Compensation layer:**
+
+- [Compensation](spec/compensation.md) — compute allocations, vesting schedules, operational/economic constraint split
+- [Employer Model](spec/employer-model.md) — flat org structure, capacity sources, budgets, UCAN delegation
+- [SLA](spec/sla.md) — periodic capacity utilization guarantees, remediation policies
+- [Accounting](spec/accounting.md) — fiat valuation, tax events, cost center records, W-2/1099 export shapes
 
 ## License
 
